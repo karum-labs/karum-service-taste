@@ -98,6 +98,10 @@ src/karum_service_taste/
 tests/                  pytest suite
 ```
 
+## Ownership
+
+Karum is a two-person build (record: [`DECISIONS.md`](https://github.com/karum-labs/karum-infra/blob/main/DECISIONS.md)). **Side A** owns taste, score, agent, and eval; **side B** owns UI, map, drafts, deploy, and Devpost. This repo is **side A** — the Qloo client, entity and tag resolution, the three-part score, and the cache. Contract changes under `proto/` need a word from side B first.
+
 ## Licence
 
 MIT. See [`LICENSE`](LICENSE).
