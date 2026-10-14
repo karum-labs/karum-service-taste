@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/kaarum/karum-service-taste"
+Repository = "https://github.com/karum-labs/karum-service-taste"
 
 [project.scripts]
 karum-service-taste = "karum_service_taste.main:app"

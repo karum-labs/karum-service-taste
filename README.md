@@ -1,16 +1,16 @@
 # karum-service-taste
 
-The **taste & correlation service** for [Karum](https://github.com/kaarum/karum-infra#readme). This microservice isolates Qloo's API quirks, authentication, and rate limits from the rest of the system. The Go gateway calls it over gRPC; it resolves entities, maps constraints to tags, fetches block profiles, and scores candidate tenants.
+The **taste & correlation service** for [Karum](https://github.com/karum-labs/karum-infra#readme). This microservice isolates Qloo's API quirks, authentication, and rate limits from the rest of the system. The Go gateway calls it over gRPC; it resolves entities, maps constraints to tags, fetches block profiles, and scores candidate tenants.
 
 Part of the five-repo Karum layout:
 
 | Repo | Role |
 | --- | --- |
-| [`karum-infra`](https://github.com/kaarum/karum-infra) | Shared protos, Docker Compose, Cloud Run manifests |
-| [`karum-client`](https://github.com/kaarum/karum-client) | Flutter UI (web / desktop) |
-| [`karum-server`](https://github.com/kaarum/karum-server) | Go + Gin API gateway |
+| [`karum-infra`](https://github.com/karum-labs/karum-infra) | Shared protos, Docker Compose, Cloud Run manifests |
+| [`karum-client`](https://github.com/karum-labs/karum-client) | Flutter UI (web / desktop) |
+| [`karum-server`](https://github.com/karum-labs/karum-server) | Go + Gin API gateway |
 | **`karum-service-taste`** (this repo) | Qloo integration, caching, taste scoring |
-| [`karum-service-ai`](https://github.com/kaarum/karum-service-ai) | Vertex AI, search grounding, pitch drafting |
+| [`karum-service-ai`](https://github.com/karum-labs/karum-service-ai) | Vertex AI, search grounding, pitch drafting |
 
 ## What it does
 
@@ -19,11 +19,11 @@ Part of the five-repo Karum layout:
 - **Data normalization & scoring** — extracts affinity scores, strips extraneous metadata, and flattens cultural tags.
 - **Caching** — stores Qloo responses (in Redis or in-process) so repeated runs don't burn through API credits.
 
-The gRPC RPCs (`ResolveEntities`, `ResolveTags`, `GetBlockProfile`, `ScoreCandidates`, plus optional `GetHeatmap` / `CompareSets`) are defined in the shared protos in [`karum-infra`](https://github.com/kaarum/karum-infra).
+The gRPC RPCs (`ResolveEntities`, `ResolveTags`, `GetBlockProfile`, `ScoreCandidates`, plus optional `GetHeatmap` / `CompareSets`) are defined in the shared protos in [`karum-infra`](https://github.com/karum-labs/karum-infra).
 
 ## Run path
 
-Requires **Python 3.13+** and [`uv`](https://docs.astral.sh/uv/) (see the version pin in [`karum-infra`](https://github.com/kaarum/karum-infra)).
+Requires **Python 3.13+** and [`uv`](https://docs.astral.sh/uv/) (see the version pin in [`karum-infra`](https://github.com/karum-labs/karum-infra)).
 
 ```bash
 # Install dependencies and run the service.
