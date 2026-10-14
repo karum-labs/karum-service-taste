@@ -1,0 +1,103 @@
+# karum-service-taste
+
+The **taste & correlation service** for [Karum](https://github.com/kaarum/karum-infra#readme). This microservice isolates Qloo's API quirks, authentication, and rate limits from the rest of the system. The Go gateway calls it over gRPC; it resolves entities, maps constraints to tags, fetches block profiles, and scores candidate tenants.
+
+Part of the five-repo Karum layout:
+
+| Repo | Role |
+| --- | --- |
+| [`karum-infra`](https://github.com/kaarum/karum-infra) | Shared protos, Docker Compose, Cloud Run manifests |
+| [`karum-client`](https://github.com/kaarum/karum-client) | Flutter UI (web / desktop) |
+| [`karum-server`](https://github.com/kaarum/karum-server) | Go + Gin API gateway |
+| **`karum-service-taste`** (this repo) | Qloo integration, caching, taste scoring |
+| [`karum-service-ai`](https://github.com/kaarum/karum-service-ai) | Vertex AI, search grounding, pitch drafting |
+
+## What it does
+
+- **Entity resolution** — turns raw user strings (e.g. "Madre Mezcal") into Qloo Entity IDs.
+- **Cross-domain querying** — calls Qloo's recommendation endpoints to fetch places matching a brand in a target city.
+- **Data normalization & scoring** — extracts affinity scores, strips extraneous metadata, and flattens cultural tags.
+- **Caching** — stores Qloo responses (in Redis or in-process) so repeated runs don't burn through API credits.
+
+The gRPC RPCs (`ResolveEntities`, `ResolveTags`, `GetBlockProfile`, `ScoreCandidates`, plus optional `GetHeatmap` / `CompareSets`) are defined in the shared protos in [`karum-infra`](https://github.com/kaarum/karum-infra).
+
+## Run path
+
+Requires **Python 3.13+** and [`uv`](https://docs.astral.sh/uv/) (see the version pin in [`karum-infra`](https://github.com/kaarum/karum-infra)).
+
+```bash
+# Install dependencies and run the service.
+uv run uvicorn karum_service_taste.main:app --reload --port 8081
+```
+
+The service listens on **`:8081`** by default. Confirm it is healthy:
+
+```bash
+curl http://localhost:8081/health
+```
+
+```json
+{
+  "service": "service-taste",
+  "status": "ok",
+  "mode": "fixture",
+  "uptime_seconds": 0,
+  "time": "2026-10-12T00:00:00+00:00"
+}
+```
+
+Interactive API docs are served at `http://localhost:8081/docs`.
+
+### Configuration
+
+Every setting is read from the environment (optionally via a `.env` file). All values have working defaults, so the service boots in fixture mode with no configuration. The full list is in [`.env.example`](.env.example).
+
+Key variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TASTE_PORT` | `8081` | HTTP/gRPC listen port |
+| `TASTE_MODE` | `fixture` | `live`, `fixture`, or `degraded`; reported on `/health` |
+| `TASTE_QLOO_API_KEY` | _(empty)_ | Qloo API key — **never commit** |
+| `TASTE_QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo base URL |
+| `TASTE_REDIS_ADDR` | `localhost:6379` | Redis cache address (empty ⇒ in-process cache) |
+| `TASTE_CACHE_TTL_SECONDS` | `86400` | Cache TTL (24h) |
+
+### Health
+
+`GET /health` reports the service's operational mode:
+
+- `fixture` — replaying recorded payloads, no outbound Qloo calls
+- `live` — real Qloo credentials present
+- `degraded` — Redis unavailable; running the in-process cache fallback
+
+### Development
+
+```bash
+uv run ruff check .    # lint
+uv run ruff format .   # format
+uv run pytest          # tests
+```
+
+### Docker
+
+```bash
+docker build -t karum-service-taste .
+docker run -p 8081:8081 -e TASTE_QLOO_API_KEY=... karum-service-taste
+```
+
+## Repository layout
+
+```
+src/karum_service_taste/
+  main.py               FastAPI app factory
+  api/routes/health.py  GET /health
+  core/config.py        environment-driven settings
+  core/logging.py       structured logging with secret redaction
+  qloo/client.py        Qloo HTTP client (stub)
+tests/                  pytest suite
+```
+
+## Licence
+
+MIT. See [`LICENSE`](LICENSE).

@@ -1,0 +1,80 @@
+[project]
+name = "karum-service-taste"
+version = "0.1.0"
+description = "Qloo integration, caching, and taste scoring for the Karum tenant-mix leasing agent."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Karum" }
+]
+requires-python = ">=3.13"
+# Runtime dependencies are added via `uv add` and pinned in uv.lock.
+dependencies = [
+    "fastapi>=0.143.0",
+    "grpcio>=1.84.0",
+    "grpcio-tools>=1.84.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.15.0",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.urls]
+Repository = "https://github.com/kaarum/karum-service-taste"
+
+[project.scripts]
+karum-service-taste = "karum_service_taste.main:app"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "httpx2>=2.13.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+# Target the pinned Python version and keep line length consistent.
+target-version = "py313"
+line-length = 100
+# Only lint the source and tests directories.
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Select a focused rule set: pycodestyle errors, pyflakes, isort, and unused
+# imports. Extendable later with mypy-style rules once types firm up.
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line length is handled by the formatter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["karum_service_taste"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+# Discover tests in the tests/ directory.
+testpaths = ["tests"]
+pythonpath = ["src"]
+# Show individual test names for readable CI output.
+addopts = "-v"
