@@ -1,0 +1,11 @@
+{
+	// uv keeps the project virtualenv at the repository root.
+	"python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+	// ruff format + import organisation match what CI enforces.
+	"editor.formatOnSave": true,
+	"ruff.fixAll": true,
+	"ruff.organizeImports": true,
+	"[python]": {
+		"editor.defaultFormatter": "charliermarsh.ruff"
+	}
+}
