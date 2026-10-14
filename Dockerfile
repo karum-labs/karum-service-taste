@@ -5,7 +5,8 @@
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS build
 
 ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_NO_EDITABLE=1
 
 WORKDIR /app
 
