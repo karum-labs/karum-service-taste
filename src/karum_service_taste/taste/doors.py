@@ -1,31 +1,46 @@
-"""Door scouting (PLAN.md section 10): the ranked board behind the pitch.
+"""Door scouting (PLAN.md sections 10-11): the ranked board and the skip list.
 
 ``ScoutDoors`` fans out the verified insights calls for a confirmed seed: one
 place board per category tag (the collab shape the lock pass recorded), WKT
 location with an explicit metre radius, and ``feature.explainability=true``.
 Rows merge across the category calls, ranks freeze in encounter order, and the
-top doors get a demographics batch in one call — the batch the demographics
-endpoint honours, one profile row per signal input. Independent calls run in
-parallel under a fan-out cap; every call lands in the evidence list with an
-``ev-NNNN`` id that the doors cite.
+returned board is the shortlist every door percentile is measured in.
 
-Recordings replay exactly: a request the pack never recorded raises
-``QlooFixtureMissError`` from the client instead of being synthesised.
+Scoring rides the same run (PLAN.md section 11):
+
+- every door carries its ``A_taste`` bundle — the affinity's percentile inside
+  the returned board, with the raw affinity kept as the Qloo fact;
+- the top doors get a demographics batch, and when the seed's own profile is
+  available their ``D_demo`` alignment against the brand's age buckets;
+- the skip list is relative: a ranked pool call fixes the floor (its
+  minimum), the candidates are batch-scored in one ``filter.results.entities``
+  call, and everything strictly below the floor lands on the skip list with a
+  machine-readable reason. A candidate exactly at the floor stays on the
+  board; an absolute threshold never fires.
+
+The enrichment calls degrade visibly: a demographics batch or the pool probe
+that cannot be made leaves its derived term unverified and names the
+degradation in the warnings instead of fabricating a value. Profile calls
+drop entities the board flagged as unknown upstream (the recorded Colaba seed
+excludes its one ``not_found`` id). The door board itself never degrades — a
+request the pack cannot replay raises ``QlooFixtureMissError`` from the
+client.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Coroutine, Sequence
+from typing import Any
 
 from karum_service_taste.qloo.client import QlooClient
-from karum_service_taste.qloo.errors import ErrorCode
+from karum_service_taste.qloo.errors import ErrorCode, QlooError
 from karum_service_taste.qloo.models import (
     CallRecord,
+    DemographicsResponse,
     DemographicsRow,
     PlaceRow,
     PlacesResponse,
-    QlooWarning,
 )
 from karum_service_taste.taste.derived import IN_CITY_RADIUS_M, haversine_meters
 from karum_service_taste.taste.schemas import (
@@ -35,7 +50,18 @@ from karum_service_taste.taste.schemas import (
     EntityRefOut,
     ExplainabilityOut,
     ScoutResult,
+    SkipItemOut,
     TagOut,
+)
+from karum_service_taste.taste.scoring import (
+    FANOUT_LIMIT,
+    POOL_TAKE,
+    SKIP_BATCH_TAKE,
+    affinity_subscore,
+    demographic_subscore,
+    format_warning,
+    resolve_skip_names,
+    skip_item,
 )
 
 #: Every door board in the lock pass was recorded at take=25.
@@ -43,9 +69,6 @@ _DOOR_TAKE = 25
 
 #: One demographics batch carries at most the recorded signal breadth (8 ids).
 DETAIL_DOOR_LIMIT = 8
-
-#: Outbound calls that may be in flight at once.
-FANOUT_LIMIT = 4
 
 
 async def scout_doors(
@@ -56,16 +79,20 @@ async def scout_doors(
     radius_meters: int,
     category_tags: Sequence[str] = (),
     interest_tags: Sequence[str] = (),
+    skip_candidate_ids: Sequence[str] = (),
+    skip_candidate_names: Sequence[str] = (),
     take: int = _DOOR_TAKE,
+    pool_take: int = POOL_TAKE,
     detail_limit: int = DETAIL_DOOR_LIMIT,
     fanout_limit: int = FANOUT_LIMIT,
 ) -> ScoutResult:
-    """Rank the door board for a confirmed seed.
+    """Rank the door board for a confirmed seed and score its skip list.
 
-    ``location`` is a ``(lat, lon)`` pair. Each category tag gets its own
-    place call — the recorded collab shape — so a category that matches
-    nothing never masks the others. An all-empty board comes back as
-    ``EMPTY`` naming the category, never as invented doors.
+    ``location`` is a ``(lat, lon)`` pair. Each category tag gets its own place
+    call — the recorded collab shape — so a category that matches nothing
+    never masks the others. Skip candidates arrive as verified ids (presets)
+    or venue names (free entry). An all-empty board comes back as ``EMPTY``
+    naming the category, never as invented doors.
     """
     if not seed:
         return ScoutResult(error_code=ErrorCode.VALIDATION, error_message="seed is empty")
@@ -98,13 +125,17 @@ async def scout_doors(
     evidence: list[CallRecord] = []
     warnings: list[str] = []
     doors: list[DoorOut] = []
+    raw_by_id: dict[str, float] = {}
     seen: set[str] = set()
+    missing: set[str] = set()
     for tag, response in zip(categories, responses, strict=True):
         call_id = ""
         if response.call is not None:
             evidence.append(response.call)
             call_id = _evidence_id(len(evidence))
-        warnings.extend(_format_warning(warning) for warning in response.warnings)
+        for warning in response.warnings:
+            warnings.append(format_warning(warning))
+            missing.update(warning.missing_entities)
         if tag is not None and not response.rows:
             warnings.append(f"category {tag} matched no doors")
         for row in response.rows:
@@ -120,36 +151,195 @@ async def scout_doors(
                     call_id=call_id,
                 )
             )
+            if row.query.affinity is not None:
+                raw_by_id[row.entity_id] = row.query.affinity
 
     if not doors:
         matched = ", ".join(tag for tag in categories if tag is not None)
         return ScoutResult(
-            warnings=warnings,
+            warnings=_dedupe(warnings),
             error_code=ErrorCode.EMPTY,
             error_message=f"no doors matched {matched or 'the seed'}",
             evidence=evidence,
         )
 
+    peers = [raw_by_id[door.entity.id] for door in doors if door.entity.id in raw_by_id]
+    for door in doors:
+        raw = raw_by_id.get(door.entity.id)
+        if raw is not None:
+            door.affinity = affinity_subscore(
+                raw, peers, inputs=[f"rank={door.rank}", f"shortlist={len(peers)}"]
+            )
+
+    # Profile calls drop entities the board flagged as unknown upstream (the
+    # recorded Colaba seed excludes its one ``not_found`` id); ranking and
+    # scoring calls keep the seed exactly as the scenario defined it.
+    demo_entities = [entity_id for entity_id in entities if entity_id not in missing]
+
+    names_resolution = None
+    if skip_candidate_names:
+        names_resolution = await resolve_skip_names(
+            client,
+            list(skip_candidate_names),
+            location=location,
+            fanout_limit=fanout_limit,
+        )
+        evidence.extend(names_resolution.evidence)
+        warnings.extend(names_resolution.warnings)
+
+    candidates: list[str] = list(skip_candidate_ids)
+    if names_resolution is not None:
+        candidates.extend(
+            entity_id for entity_id in names_resolution.ids if entity_id not in candidates
+        )
+
     detail_ids = [door.entity.id for door in doors[: min(detail_limit, DETAIL_DOOR_LIMIT)]]
+
+    async def run_seed_demographics() -> tuple[DemographicsResponse | None, str | None]:
+        try:
+            async with semaphore:
+                response = await client.insights_demographics(demo_entities)
+            return response, None
+        except QlooError as exc:
+            return None, (
+                f"seed demographics unavailable ({type(exc).__name__}); "
+                "demographic alignment left unverified"
+            )
+
+    async def run_pool() -> tuple[PlacesResponse | None, str | None]:
+        try:
+            async with semaphore:
+                response = await client.insights_places(
+                    entities,
+                    location=location,
+                    radius_m=radius_meters,
+                    take=pool_take,
+                    explainability=False,
+                )
+            return response, None
+        except QlooError as exc:
+            return None, (
+                f"ranked pool probe unavailable ({type(exc).__name__}); "
+                "floor falls back to the door board"
+            )
+
+    async def run_door_demographics() -> tuple[DemographicsResponse | None, str | None]:
+        try:
+            async with semaphore:
+                response = await client.insights_demographics(detail_ids)
+            return response, None
+        except QlooError as exc:
+            return None, (
+                f"door demographics unavailable ({type(exc).__name__}); alignment stays unverified"
+            )
+
+    async def run_skip_batch() -> tuple[PlacesResponse | None, str | None]:
+        try:
+            async with semaphore:
+                response = await client.insights_places(
+                    entities,
+                    location=location,
+                    radius_m=radius_meters,
+                    results_entities=candidates,
+                    take=SKIP_BATCH_TAKE,
+                    explainability=False,
+                )
+            return response, None
+        except QlooError as exc:
+            return None, (
+                f"skip batch unavailable ({type(exc).__name__}); candidates were not scored"
+            )
+
+    jobs: dict[str, Coroutine[Any, Any, Any]] = {}
+    if demo_entities:
+        jobs["seed_demographics"] = run_seed_demographics()
+    else:
+        warnings.append("seed demographics skipped: no seed entity resolved upstream")
+    if candidates:
+        jobs["pool"] = run_pool()
     if detail_ids:
-        async with semaphore:
-            profiles = await client.insights_demographics(detail_ids)
-        detail_call_id = ""
-        if profiles.call is not None:
-            evidence.append(profiles.call)
-            detail_call_id = _evidence_id(len(evidence))
-        warnings.extend(_format_warning(warning) for warning in profiles.warnings)
-        by_id = {row.entity_id: row for row in profiles.rows}
+        jobs["door_demographics"] = run_door_demographics()
+    if candidates:
+        jobs["skip_batch"] = run_skip_batch()
+    settled = await asyncio.gather(*jobs.values())
+    outcomes = dict(zip(jobs.keys(), settled, strict=True))
+
+    seed_profiles, seed_failure = outcomes.get("seed_demographics", (None, None))
+    if seed_failure is not None:
+        warnings.append(seed_failure)
+    if seed_profiles is not None:
+        if seed_profiles.call is not None:
+            evidence.append(seed_profiles.call)
+        warnings.extend(format_warning(warning) for warning in seed_profiles.warnings)
+    target_row = (
+        _pick_profile(seed_profiles.rows, entities[0]) if seed_profiles is not None else None
+    )
+
+    pool, pool_failure = outcomes.get("pool", (None, None))
+    pool_peers: list[float] = []
+    if pool_failure is not None:
+        warnings.append(pool_failure)
+    if pool is not None:
+        if pool.call is not None:
+            evidence.append(pool.call)
+        warnings.extend(format_warning(warning) for warning in pool.warnings)
+        pool_peers = [row.query.affinity for row in pool.rows if row.query.affinity is not None]
+        if not pool_peers:
+            warnings.append(
+                "ranked pool returned no affinity rows; floor falls back to the door board"
+            )
+    board_floor = min(peers) if peers else None
+    floor = min(pool_peers) if pool_peers else board_floor
+
+    door_profiles, door_failure = outcomes.get("door_demographics", (None, None))
+    if door_failure is not None:
+        warnings.append(door_failure)
+    if door_profiles is not None:
+        call_id = ""
+        if door_profiles.call is not None:
+            evidence.append(door_profiles.call)
+            call_id = _evidence_id(len(evidence))
+        warnings.extend(format_warning(warning) for warning in door_profiles.warnings)
+        by_id = {row.entity_id: row for row in door_profiles.rows}
         for door in doors[: len(detail_ids)]:
             row = by_id.get(door.entity.id)
-            if row is not None:
-                door.demographics = _profile_from_row(row)
-                if detail_call_id:
-                    door.evidence_ids.append(detail_call_id)
+            if row is None:
+                continue
+            door.demographics = _profile_from_row(row)
+            if call_id:
+                door.evidence_ids.append(call_id)
+            if target_row is not None:
+                door.demographic_alignment = demographic_subscore(row.age, target_row.age)
+
+    skip_items: list[SkipItemOut] = []
+    batch, batch_failure = outcomes.get("skip_batch", (None, None))
+    if batch_failure is not None:
+        warnings.append(batch_failure)
+    if batch is not None:
+        if batch.call is not None:
+            evidence.append(batch.call)
+        warnings.extend(format_warning(warning) for warning in batch.warnings)
+        comparison = pool_peers or peers
+        if floor is None:
+            warnings.append("no affinity floor available; skip candidates were not classified")
+        else:
+            scored: list[tuple[float, SkipItemOut]] = []
+            for row in batch.rows:
+                raw = row.query.affinity
+                if raw is None:
+                    warnings.append(f"candidate {row.name} came back without an affinity")
+                    continue
+                if raw < floor:
+                    scored.append((raw, skip_item(_entity_ref(row), raw, floor, comparison)))
+            scored.sort(key=lambda pair: (-pair[0], pair[1].entity.id))
+            skip_items = [item for _, item in scored]
+    if names_resolution is not None:
+        skip_items.extend(names_resolution.unresolved)
 
     return ScoutResult(
         doors=doors,
-        warnings=warnings,
+        skip_list=skip_items,
+        warnings=_dedupe(warnings),
         error_code=ErrorCode.UNSPECIFIED,
         evidence=evidence,
     )
@@ -176,16 +366,9 @@ def _door_from_row(
                     label=labels.get(contribution.entity_id, ""),
                 )
             )
-    geocode = row.properties.geocode
     return DoorOut(
-        entity=EntityRefOut(
-            id=row.entity_id,
-            type=row.type or "urn:entity:place",
-            name=row.name,
-            city=geocode.city if geocode is not None else None,
-        ),
+        entity=_entity_ref(row),
         rank=rank,
-        affinity_raw=row.query.affinity,
         distance_meters=distance,
         outside_city=distance is not None and distance > IN_CITY_RADIUS_M,
         shared_tags=[
@@ -194,6 +377,17 @@ def _door_from_row(
         ],
         explainability=contributions,
         evidence_ids=[call_id] if call_id else [],
+    )
+
+
+def _entity_ref(row: PlaceRow) -> EntityRefOut:
+    """The entity reference a door card (or a skip row) shows."""
+    geocode = row.properties.geocode
+    return EntityRefOut(
+        id=row.entity_id,
+        type=row.type or "urn:entity:place",
+        name=row.name,
+        city=geocode.city if geocode is not None else None,
     )
 
 
@@ -208,13 +402,19 @@ def _profile_from_row(row: DemographicsRow) -> DemographicsProfileOut:
     )
 
 
-def _format_warning(warning: QlooWarning) -> str:
-    """One upstream warning as the operator-readable line it becomes."""
-    if warning.missing_entities:
-        return f"{warning.type}: {', '.join(warning.missing_entities)}"
-    return warning.type
+def _pick_profile(rows: Sequence[DemographicsRow], brand_id: str) -> DemographicsRow | None:
+    """The target cohort row: the brand anchor's profile, else the first row."""
+    for row in rows:
+        if row.entity_id == brand_id:
+            return row
+    return rows[0] if rows else None
 
 
 def _evidence_id(position: int) -> str:
     """The proto's citation form: ``ev-0001`` is a run's first call."""
     return f"ev-{position:04d}"
+
+
+def _dedupe(warnings: Sequence[str]) -> list[str]:
+    """Warnings as distinct lines, in the order the run first met them."""
+    return list(dict.fromkeys(warnings))

@@ -8,6 +8,8 @@ flagged as the service's own inference.
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from karum_service_taste.qloo.errors import ErrorCode
@@ -136,6 +138,17 @@ class ExplainabilityOut(BaseModel):
     label: str = ""
 
 
+class SubScoreOut(BaseModel):
+    """One 0-1 term of the door composite, with its inputs written beside it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    value: float
+    raw_value: float
+    inputs: list[str] = Field(default_factory=list)
+
+
 class DoorOut(BaseModel):
     """One ranked door: the venue row plus everything the card cites."""
 
@@ -143,7 +156,8 @@ class DoorOut(BaseModel):
 
     entity: EntityRefOut
     rank: int
-    affinity_raw: float | None = None
+    affinity: SubScoreOut | None = None
+    demographic_alignment: SubScoreOut | None = None
     distance_meters: float | None = None
     outside_city: bool = False
     shared_tags: list[TagOut] = Field(default_factory=list)
@@ -152,12 +166,34 @@ class DoorOut(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class SkipReason(StrEnum):
+    """Why a candidate sits on the skip list (mirrors ``SkipReasonCode``)."""
+
+    LOW_AFFINITY = "low_affinity"
+    COMPETITOR_SATURATION = "competitor_saturation"
+    CLOSED = "closed"
+    OUTSIDE_CITY = "outside_city"
+    UNRESOLVED = "unresolved"
+
+
+class SkipItemOut(BaseModel):
+    """One door on the skip list, with its reason and the compared scores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity: EntityRefOut
+    affinity: SubScoreOut | None = None
+    reason: SkipReason
+    reason_detail: str = ""
+
+
 class ScoutResult(BaseModel):
     """Everything ``ScoutDoors`` returns."""
 
     model_config = ConfigDict(extra="forbid")
 
     doors: list[DoorOut] = Field(default_factory=list)
+    skip_list: list[SkipItemOut] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     error_code: ErrorCode
     error_message: str = ""
