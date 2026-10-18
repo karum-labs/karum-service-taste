@@ -648,6 +648,7 @@ def _parse_compare(payload: Any) -> CompareResponse:
 
     return CompareResponse(
         warnings=_parse_warnings(payload),
+        rows=_validate_rows(CompareRow, side("tags"), "compare.tags"),
         a=_validate_rows(CompareRow, side("a"), "compare.a"),
         b=_validate_rows(CompareRow, side("b"), "compare.b"),
         match_entities=_validate_rows(CompareRow, side("matchEntities"), "compare.matchEntities"),

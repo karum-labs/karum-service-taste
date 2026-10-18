@@ -254,7 +254,7 @@ async def test_fixture_austin_control_stays_off_the_skip_list(pack: FixturePack)
                     "demographics": [
                         profile_row(
                             leader_id,
-                            {"25_to_29": 0.3, "30_to_34": -0.1},
+                            {"25_to_29": -0.3, "30_to_34": 0.1},
                             male=0.05,
                             female=0.1,
                         )

@@ -58,6 +58,7 @@ from karum_service_taste.taste.scoring import (
     POOL_TAKE,
     SKIP_BATCH_TAKE,
     affinity_subscore,
+    dedupe_warnings,
     demographic_subscore,
     format_warning,
     resolve_skip_names,
@@ -157,7 +158,7 @@ async def scout_doors(
     if not doors:
         matched = ", ".join(tag for tag in categories if tag is not None)
         return ScoutResult(
-            warnings=_dedupe(warnings),
+            warnings=dedupe_warnings(warnings),
             error_code=ErrorCode.EMPTY,
             error_message=f"no doors matched {matched or 'the seed'}",
             evidence=evidence,
@@ -310,6 +311,12 @@ async def scout_doors(
                 door.evidence_ids.append(call_id)
             if target_row is not None:
                 door.demographic_alignment = demographic_subscore(row.age, target_row.age)
+                alignment = door.demographic_alignment
+                if alignment is not None and alignment.value < 0.5:
+                    warnings.append(
+                        f"demographic mismatch at {door.entity.name}: "
+                        f"D_demo {alignment.value:.2f} runs against the brand cohort"
+                    )
 
     skip_items: list[SkipItemOut] = []
     batch, batch_failure = outcomes.get("skip_batch", (None, None))
@@ -339,7 +346,7 @@ async def scout_doors(
     return ScoutResult(
         doors=doors,
         skip_list=skip_items,
-        warnings=_dedupe(warnings),
+        warnings=dedupe_warnings(warnings),
         error_code=ErrorCode.UNSPECIFIED,
         evidence=evidence,
     )
@@ -413,8 +420,3 @@ def _pick_profile(rows: Sequence[DemographicsRow], brand_id: str) -> Demographic
 def _evidence_id(position: int) -> str:
     """The proto's citation form: ``ev-0001`` is a run's first call."""
     return f"ev-{position:04d}"
-
-
-def _dedupe(warnings: Sequence[str]) -> list[str]:
-    """Warnings as distinct lines, in the order the run first met them."""
-    return list(dict.fromkeys(warnings))

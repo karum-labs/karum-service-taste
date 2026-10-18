@@ -323,8 +323,9 @@ class DemographicsResponse(QlooResponse):
 
 
 class CompareResponse(QlooResponse):
-    """Compare payload: rows for side A, side B, and shared match entities."""
+    """Compare payload: ``rows`` is the ``results.tags`` overlap; sides and matches follow."""
 
+    rows: list[CompareRow] = Field(default_factory=list)
     a: list[CompareRow] = Field(default_factory=list)
     b: list[CompareRow] = Field(default_factory=list)
     match_entities: list[CompareRow] = Field(default_factory=list)

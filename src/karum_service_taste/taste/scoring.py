@@ -108,6 +108,11 @@ def format_warning(warning: QlooWarning) -> str:
     return warning.type
 
 
+def dedupe_warnings(warnings: Sequence[str]) -> list[str]:
+    """Warnings as distinct lines, in the order the run first met them."""
+    return list(dict.fromkeys(warnings))
+
+
 def skip_item(
     entity: EntityRefOut, raw: float, floor: float, peers: Sequence[float]
 ) -> SkipItemOut:

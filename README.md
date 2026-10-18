@@ -126,7 +126,7 @@ src/karum_service_taste/
   core/config.py        environment-driven settings
   core/logging.py       structured logging with secret redaction
   qloo/                 typed Qloo client: endpoints, fixtures, pacing, metrics
-  taste/                seed and tag resolution with derived confidence
+  taste/                seed, tag, door, heatmap, and compare resolution
 tests/                  pytest suite, including the full fixture-pack replay
 ```
 

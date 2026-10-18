@@ -159,6 +159,25 @@ async def test_compare_builds_the_recorded_shape() -> None:
     }
 
 
+async def test_compare_reads_the_tags_overlap() -> None:
+    row = {
+        "tag_id": "urn:tag:offerings:place:alcohol",
+        "name": "Alcohol",
+        "type": "urn:tag",
+        "subtype": "urn:tag:offerings:place",
+        "entity_id": "01FE8354-6E33-48DF-B188-50E056F3995E",
+        "count": "7",
+    }
+    transport = FakeTransport(
+        ok({"results": {"tags": [row], "a": [], "b": [], "matchEntities": []}})
+    )
+    response = await _client(transport).compare(
+        "A29A1AE5-57F9-4C42-95CD-143C90F4B55A", "41C4BB40-E667-416F-9541-63FD7E7FFFF5"
+    )
+    assert [tag.tag_id for tag in response.rows] == ["urn:tag:offerings:place:alcohol"]
+    assert response.rows[0].count == "7"
+
+
 async def test_compare_rejects_non_entity_ids() -> None:
     transport = FakeTransport()
     with pytest.raises(QlooValidationError):

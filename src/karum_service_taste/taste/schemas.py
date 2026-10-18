@@ -198,3 +198,69 @@ class ScoutResult(BaseModel):
     error_code: ErrorCode
     error_message: str = ""
     evidence: list[CallRecord] = Field(default_factory=list)
+
+
+class GeoPointOut(BaseModel):
+    """A latitude/longitude pair as the map layers consume it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lat: float
+    lon: float
+
+
+class HeatmapCellOut(BaseModel):
+    """One density cell of the flagship heatmap (``filter.type=urn:heatmap``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    location: GeoPointOut | None = None
+    geohash: str | None = None
+    affinity: float | None = None
+    affinity_rank: float | None = None
+    popularity: float | None = None
+
+
+class LocalityPolygonOut(BaseModel):
+    """One locality polygon; the brief names its corridors from these."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    disambiguation: str | None = None
+    affinity: float | None = None
+    centroid: GeoPointOut | None = None
+    polygon: list[GeoPointOut] = Field(default_factory=list)
+
+
+class HeatmapResult(BaseModel):
+    """Everything ``GetLocalityHeatmap`` returns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cells: list[HeatmapCellOut] = Field(default_factory=list)
+    localities: list[LocalityPolygonOut] = Field(default_factory=list)
+    corridors: list[str] = Field(default_factory=list)
+    anchors: list[EntityRefOut] = Field(default_factory=list)
+    available: bool = True
+    unavailable_reason: str = ""
+    warnings: list[str] = Field(default_factory=list)
+    error_code: ErrorCode
+    error_message: str = ""
+    evidence: list[CallRecord] = Field(default_factory=list)
+
+
+class CompareResult(BaseModel):
+    """Everything ``CompareAudiences`` returns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    overlap_tags: list[TagOut] = Field(default_factory=list)
+    match_entities: list[EntityRefOut] = Field(default_factory=list)
+    match_entities_present: bool = False
+    available: bool = True
+    unavailable_reason: str = ""
+    warnings: list[str] = Field(default_factory=list)
+    error_code: ErrorCode
+    error_message: str = ""
+    evidence: list[CallRecord] = Field(default_factory=list)

@@ -371,6 +371,27 @@ async def test_top_door_demographics_map_onto_their_doors() -> None:
     assert transport.requests[2][1][1] == ("signal.interests.entities", f"{ALPHA},{BETA}")
 
 
+async def test_demographic_mismatch_rides_beside_d_demo() -> None:
+    transport = FakeTransport(
+        ok(board(door_row(ALPHA, "Alpha"))),
+        ok({"results": {"demographics": [profile_row(AUSTIN_SEED[0].id, {"25_to_29": 1.0})]}}),
+        ok({"results": {"demographics": [profile_row(ALPHA, {"25_to_29": -1.0})]}}),
+    )
+    result = await scout_doors(
+        make_client(transport),
+        AUSTIN_SEED,
+        location=AUSTIN,
+        radius_meters=8000,
+    )
+
+    alpha = result.doors[0]
+    assert alpha.demographic_alignment is not None
+    assert alpha.demographic_alignment.value == 0.0
+    assert result.warnings == [
+        "demographic mismatch at Alpha: D_demo 0.00 runs against the brand cohort"
+    ]
+
+
 async def test_interest_tags_ride_the_signal() -> None:
     transport = FakeTransport(
         ok(board(door_row(ALPHA, "Alpha"))),
