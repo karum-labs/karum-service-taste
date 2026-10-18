@@ -5,12 +5,16 @@ that mirrors the frozen ``karum.taste.v1`` protos, so the gRPC servicer is a
 field-by-field translation.
 """
 
+from karum_service_taste.taste.doors import DETAIL_DOOR_LIMIT, FANOUT_LIMIT, scout_doors
 from karum_service_taste.taste.schemas import (
+    DoorOut,
     EntityRefOut,
     ResolvedChipOut,
+    ScoutResult,
     SeedCandidateOut,
     SeedQueryOut,
     SeedResolution,
+    TagOut,
     TagResolution,
     UnresolvedChipOut,
 )
@@ -20,13 +24,19 @@ from karum_service_taste.taste.tags import ALLOWED_NAMESPACES, resolve_tags
 __all__ = [
     "ALLOWED_NAMESPACES",
     "DEFAULT_CACHE_TTL_SECONDS",
+    "DETAIL_DOOR_LIMIT",
+    "DoorOut",
     "EntityRefOut",
+    "FANOUT_LIMIT",
     "ResolvedChipOut",
+    "ScoutResult",
     "SeedCandidateOut",
     "SeedQueryOut",
     "SeedResolution",
+    "TagOut",
     "TagResolution",
     "UnresolvedChipOut",
     "resolve_brand_seed",
     "resolve_tags",
+    "scout_doors",
 ]

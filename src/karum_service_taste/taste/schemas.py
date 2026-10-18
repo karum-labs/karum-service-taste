@@ -94,3 +94,71 @@ class TagResolution(BaseModel):
     error_code: ErrorCode
     error_message: str = ""
     evidence: list[CallRecord] = Field(default_factory=list)
+
+
+class TagOut(BaseModel):
+    """One tag row: the URN, its label, namespace, and shared weight."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    urn: str
+    label: str
+    type: str
+    weight: float | None = None
+
+
+class DemographicsBucketOut(BaseModel):
+    """One age bucket with its delta versus the population baseline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    delta: float
+
+
+class DemographicsProfileOut(BaseModel):
+    """One entity's demographic alignment inputs (PLAN.md section 11)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    age_buckets: list[DemographicsBucketOut] = Field(default_factory=list)
+    male_delta: float = 0.0
+    female_delta: float = 0.0
+
+
+class ExplainabilityOut(BaseModel):
+    """One seed input's contribution to a door, straight from Qloo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    score: float
+    label: str = ""
+
+
+class DoorOut(BaseModel):
+    """One ranked door: the venue row plus everything the card cites."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entity: EntityRefOut
+    rank: int
+    affinity_raw: float | None = None
+    distance_meters: float | None = None
+    outside_city: bool = False
+    shared_tags: list[TagOut] = Field(default_factory=list)
+    explainability: list[ExplainabilityOut] = Field(default_factory=list)
+    demographics: DemographicsProfileOut | None = None
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class ScoutResult(BaseModel):
+    """Everything ``ScoutDoors`` returns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    doors: list[DoorOut] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    error_code: ErrorCode
+    error_message: str = ""
+    evidence: list[CallRecord] = Field(default_factory=list)

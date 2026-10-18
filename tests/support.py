@@ -14,7 +14,13 @@ from typing import Any
 import pytest
 
 from karum_service_taste.core.config import Settings
-from karum_service_taste.qloo.fixtures import REPO_ROOT, FixturePack, resolve_fixtures_dir
+from karum_service_taste.qloo.errors import QlooFixtureMissError
+from karum_service_taste.qloo.fixtures import (
+    REPO_ROOT,
+    FixturePack,
+    FixtureTransport,
+    resolve_fixtures_dir,
+)
 from karum_service_taste.qloo.transport import TransportResponse
 
 #: CI sets this so a missing pack is a failure, not a skip.
@@ -74,6 +80,39 @@ def ok(
 ) -> TransportResponse:
     """A scripted answer for :class:`FakeTransport`."""
     return TransportResponse(status=status, headers=dict(headers or {}), payload=payload)
+
+
+class OverlayTransport:
+    """Fixture replay with a scripted queue for calls the pack never recorded.
+
+    Tests use this when a call is deliberately unrecorded (for example the
+    top-door demographics batch, which no preset contains). Recorded requests
+    still replay from the locked pack; a scripted answer is consumed only
+    after a fixture miss, and ``self.scripted`` records exactly which calls
+    leaned on the script so the test can assert them.
+    """
+
+    name = "overlay"
+
+    def __init__(self, pack: FixturePack, *script: TransportResponse | Exception) -> None:
+        self._fixture = FixtureTransport(pack)
+        self._script = list(script)
+        self.scripted: list[tuple[str, list[tuple[str, str]]]] = []
+
+    async def get(self, path: str, params: list[tuple[str, str]]) -> TransportResponse:
+        try:
+            return await self._fixture.get(path, params)
+        except QlooFixtureMissError:
+            if not self._script:
+                raise
+            self.scripted.append((path, list(params)))
+            item = self._script.pop(0)
+            if isinstance(item, Exception):
+                raise item from None
+            return item
+
+    async def aclose(self) -> None:
+        await self._fixture.aclose()
 
 
 class SleepingClock:
