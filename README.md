@@ -122,9 +122,11 @@ docker run -p 8081:8081 -e TASTE_QLOO_API_KEY=... karum-service-taste
 src/karum_service_taste/
   main.py               FastAPI app factory
   api/routes/health.py  GET /health (mode, Qloo transport, metrics)
+  core/cache.py         short-TTL lookup cache for resolution
   core/config.py        environment-driven settings
   core/logging.py       structured logging with secret redaction
   qloo/                 typed Qloo client: endpoints, fixtures, pacing, metrics
+  taste/                seed and tag resolution with derived confidence
 tests/                  pytest suite, including the full fixture-pack replay
 ```
 
