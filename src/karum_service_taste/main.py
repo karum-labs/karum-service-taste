@@ -8,12 +8,23 @@ Cloud Run.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from karum_service_taste import __version__
 from karum_service_taste.api.routes import health
 from karum_service_taste.core.config import get_settings
 from karum_service_taste.core.logging import configure as configure_logging
+from karum_service_taste.qloo import QlooClient
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Release the Qloo transport (if one was ever built) on shutdown."""
+    yield
+    await app.state.qloo.aclose()
 
 
 def create_app() -> FastAPI:
@@ -33,11 +44,15 @@ def create_app() -> FastAPI:
         # auto-generated docs are only useful in local development.
         docs_url="/docs",
         redoc_url=None,
+        lifespan=_lifespan,
     )
 
-    # Expose the resolved settings on the app state so handlers and tests can
-    # reach them without re-reading the environment.
+    # Expose the resolved settings and the shared Qloo client on the app state
+    # so handlers and tests can reach them without re-reading the environment.
+    # The client is cheap to construct: its transport (fixture pack or httpx)
+    # is built lazily on first use.
     app.state.settings = settings
+    app.state.qloo = QlooClient(settings)
 
     app.include_router(health.router)
 

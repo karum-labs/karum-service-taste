@@ -18,6 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The Qloo fixture pack lives in the sibling infra repo. Checking it
+      # out lets pack-dependent tests run for real instead of skipping.
+      - name: Checkout karum-infra (fixture pack)
+        uses: actions/checkout@v4
+        with:
+          repository: karum-labs/karum-infra
+          path: _infra
+          # The default token reads public repos; set FIXTURE_REPO_TOKEN if
+          # karum-infra is still private.
+          token: ${{ secrets.FIXTURE_REPO_TOKEN || github.token }}
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -38,4 +49,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Test
+        env:
+          TASTE_FIXTURES_DIR: ${{ github.workspace }}/_infra/fixtures
+          TASTE_REQUIRE_FIXTURES: "1"
         run: uv run pytest

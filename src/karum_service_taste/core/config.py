@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -53,6 +54,14 @@ class Settings(BaseSettings):
     qloo_timeout_seconds: float = 10.0
     #: Maximum retries with backoff for retriable Qloo failures.
     qloo_max_retries: int = 3
+    #: Per-second request budget; the hackathon key publishes 5 via
+    #: X-Second-RateLimit-Limit and the client paces itself below it.
+    qloo_rps: float = 5.0
+    #: Base seconds for exponential retry backoff (0.5, 1, 2, ...).
+    qloo_backoff_base_seconds: float = 0.5
+    #: Redacted fixture pack root, used in fixture mode. Relative paths
+    #: resolve against this repository's root; the pack ships in karum-infra.
+    fixtures_dir: Path = Path("../karum-infra/fixtures")
 
     # Cache ---------------------------------------------------------------
     #: Redis connection address. When empty the service uses an in-process cache.

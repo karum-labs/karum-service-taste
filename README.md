@@ -42,7 +42,12 @@ curl http://localhost:8081/health
   "status": "ok",
   "mode": "fixture",
   "uptime_seconds": 0,
-  "time": "2026-10-12T00:00:00+00:00"
+  "time": "2026-10-12T00:00:00+00:00",
+  "qloo": {
+    "transport": "fixture",
+    "metrics": {},
+    "rate_limit": null
+  }
 }
 ```
 
@@ -60,6 +65,8 @@ Key variables:
 | `TASTE_MODE` | `fixture` | `live`, `fixture`, or `degraded`; reported on `/health` |
 | `TASTE_QLOO_API_KEY` | _(empty)_ | Qloo API key — **never commit** |
 | `TASTE_QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo base URL |
+| `TASTE_QLOO_RPS` | `5.0` | Outbound pacing ceiling (observed Qloo limit: 5 rps) |
+| `TASTE_FIXTURES_DIR` | `../karum-infra/fixtures` | Redacted fixture pack root used in fixture mode |
 | `TASTE_REDIS_ADDR` | `localhost:6379` | Redis cache address (empty ⇒ in-process cache) |
 | `TASTE_CACHE_TTL_SECONDS` | `86400` | Cache TTL (24h) |
 
@@ -71,12 +78,35 @@ Key variables:
 - `live` — real Qloo credentials present
 - `degraded` — Redis unavailable; running the in-process cache fallback
 
+It also exposes the Qloo client's active transport and call metrics
+(calls, errors by code, rows, latency) so the judging dashboard can see what
+the service has done without scraping logs.
+
+### Fixtures & offline mode
+
+In `fixture` mode the Qloo client replays the redacted fixture pack shipped by
+[`karum-infra`](https://github.com/karum-labs/karum-infra) instead of calling
+Qloo — no network, no API spend. The pack holds 76 recordings across the four
+judge presets plus the `qloo/misses/` honesty fixtures. The pack root resolves
+in order:
+
+1. `TASTE_FIXTURES_DIR`, when set (absolute, or relative to this repo)
+2. `../karum-infra/fixtures` — the sibling checkout
+
+A request the pack has not recorded raises `QlooFixtureMissError`: fixture mode
+never invents payloads, and every response flows through the same typed
+parsers as live mode.
+
+Pack-dependent tests **skip** when the pack is missing locally; CI checks out
+`karum-infra` beside this repo and sets `TASTE_REQUIRE_FIXTURES=1`, so a
+missing pack fails the build instead of silently skipping.
+
 ### Development
 
 ```bash
 uv run ruff check .    # lint
 uv run ruff format .   # format
-uv run pytest          # tests
+uv run pytest          # tests, including the full fixture-pack replay
 ```
 
 ### Docker
@@ -91,11 +121,11 @@ docker run -p 8081:8081 -e TASTE_QLOO_API_KEY=... karum-service-taste
 ```
 src/karum_service_taste/
   main.py               FastAPI app factory
-  api/routes/health.py  GET /health
+  api/routes/health.py  GET /health (mode, Qloo transport, metrics)
   core/config.py        environment-driven settings
   core/logging.py       structured logging with secret redaction
-  qloo/client.py        Qloo HTTP client (stub)
-tests/                  pytest suite
+  qloo/                 typed Qloo client: endpoints, fixtures, pacing, metrics
+tests/                  pytest suite, including the full fixture-pack replay
 ```
 
 ## Ownership
