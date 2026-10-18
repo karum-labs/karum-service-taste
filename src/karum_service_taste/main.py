@@ -18,13 +18,16 @@ from karum_service_taste.api.routes import health
 from karum_service_taste.core.cache import build_cache
 from karum_service_taste.core.config import get_settings
 from karum_service_taste.core.logging import configure as configure_logging
+from karum_service_taste.grpcserv import serve as serve_grpc
 from karum_service_taste.qloo import QlooClient
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Release the Qloo transport (if one was ever built) on shutdown."""
+    """Start the gRPC server beside HTTP, then release both on shutdown."""
+    grpc_server = serve_grpc(app.state.qloo, app.state.settings.grpc_port)
     yield
+    grpc_server.stop(3)
     await app.state.qloo.aclose()
 
 

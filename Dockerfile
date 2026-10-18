@@ -36,6 +36,7 @@ WORKDIR /app
 # Cloud Run injects the port; default to 8081 to match local Compose.
 ENV TASTE_PORT=8081
 EXPOSE 8081
+EXPOSE 9091
 
 # Run as a non-root user.
 RUN useradd --create-home --uid 1000 appuser

@@ -49,6 +49,7 @@ target-version = "py313"
 line-length = 100
 # Only lint the source and tests directories.
 src = ["src", "tests"]
+extend-exclude = ["src/karum"]
 
 [tool.ruff.lint]
 # Select a focused rule set: pycodestyle errors, pyflakes, isort, and unused
