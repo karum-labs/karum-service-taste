@@ -133,7 +133,22 @@ async def resolve_brand_seed(
             evidence=evidence,
         )
 
+    # Collapse duplicate venues to one entity (by entity id).
+    candidates = _dedupe_entities(candidates)
+
+    # At this point we have at least one candidate. Compute confidence.
     resolved_outcomes = [outcome for outcome in outcomes if outcome.resolved]
+    if not resolved_outcomes:
+        # All queries missed; seed is unresolved.
+        return SeedResolution(
+            queries=outcomes,
+            confidence=0.0,
+            unresolved=True,
+            error_code=ErrorCode.UNRESOLVED,
+            error_message="no seed query resolved",
+            evidence=evidence,
+        )
+
     tops = [
         next(
             candidate.confidence
@@ -234,3 +249,19 @@ def _colliding_names(
     for row, _confidence, within, _city_label in prepared:
         memberships.setdefault(normalize_text(row.name), set()).add(within)
     return {name for name, flags in memberships.items() if len(flags) > 1}
+
+
+def _dedupe_entities(
+    candidates: Sequence[SeedCandidateOut],
+) -> list[SeedCandidateOut]:
+    """Collapse duplicate venues to one entity (by entity id), keeping the first."""
+
+    seen: set[str] = set()
+    result: list[SeedCandidateOut] = []
+    for candidate in candidates:
+        eid = candidate.entity.id
+        if eid in seen:
+            continue
+        seen.add(eid)
+        result.append(candidate)
+    return result
