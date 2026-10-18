@@ -20,8 +20,11 @@ and the fixture pack speak the same spellings.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Mapping, Sequence
+from typing import Any
 from urllib.parse import parse_qsl
 
 _POINT_RE = re.compile(r"^POINT\s*\(\s*(?P<lon>-?\d+(?:\.\d+)?)\s+(?P<lat>-?\d+(?:\.\d+)?)\s*\)$")
@@ -129,3 +132,28 @@ def format_pair(lat: float, lon: float) -> str:
 def format_list(values: Sequence[str]) -> str:
     """Comma-join URNs or ids the way the recordings show them."""
     return ",".join(values)
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert a canonical signature value into JSON-friendly nesting."""
+    if isinstance(value, tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def cache_key(path: str, params: Sequence[tuple[str, str]]) -> str:
+    """A stable, collision-resistant cache key for a Qloo request.
+
+    The key is ``karum:qloo:<sha256>`` over the canonical request signature,
+    so the same logical request (regardless of parameter ordering or float
+    formatting) always hits the same entry.
+    """
+    sig: RequestSignature = signature(path, params)
+    path_value, pairs = sig
+    document = [path_value, [[name, _jsonable(value)] for name, value in pairs]]
+    digest = hashlib.sha256(
+        json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"karum:qloo:{digest}"

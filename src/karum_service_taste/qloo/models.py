@@ -289,6 +289,8 @@ class CallRecord(QlooModel):
     attempts: int
     rows: int
     rate_limit: RateLimitSnapshot | None = None
+    #: True when the call was served from the cache and never reached Qloo.
+    cache_hit: bool = False
 
 
 class QlooResponse(QlooModel):

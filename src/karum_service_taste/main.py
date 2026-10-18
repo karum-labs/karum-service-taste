@@ -15,6 +15,7 @@ from fastapi import FastAPI
 
 from karum_service_taste import __version__
 from karum_service_taste.api.routes import health
+from karum_service_taste.core.cache import build_cache
 from karum_service_taste.core.config import get_settings
 from karum_service_taste.core.logging import configure as configure_logging
 from karum_service_taste.qloo import QlooClient
@@ -50,9 +51,12 @@ def create_app() -> FastAPI:
     # Expose the resolved settings and the shared Qloo client on the app state
     # so handlers and tests can reach them without re-reading the environment.
     # The client is cheap to construct: its transport (fixture pack or httpx)
-    # is built lazily on first use.
+    # and its cache (Redis primary, in-memory fallback) are built lazily.
     app.state.settings = settings
-    app.state.qloo = QlooClient(settings)
+    app.state.qloo = QlooClient(
+        settings, cache=build_cache(settings.redis_addr, ttl_seconds=settings.cache_ttl_seconds)
+    )
+    app.state.cache = app.state.qloo.cache
 
     app.include_router(health.router)
 

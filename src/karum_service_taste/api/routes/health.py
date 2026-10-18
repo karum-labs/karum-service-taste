@@ -28,6 +28,7 @@ def health(request: Request) -> dict[str, Any]:
     settings = request.app.state.settings
     client = request.app.state.qloo
     rate_limit = client.last_rate_limit
+    cache = request.app.state.cache
     return {
         "service": settings.service_name,
         "status": "ok",
@@ -38,5 +39,9 @@ def health(request: Request) -> dict[str, Any]:
             "transport": client.transport_name,
             "metrics": client.metrics.snapshot(),
             "rate_limit": rate_limit.model_dump() if rate_limit is not None else None,
+        },
+        "cache": {
+            "backend": cache.backend_name if cache is not None else "none",
+            "degraded": client.cache_degraded,
         },
     }

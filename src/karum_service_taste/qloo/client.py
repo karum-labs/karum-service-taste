@@ -27,12 +27,15 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from pydantic import ValidationError
 
+from karum_service_taste.core.cache import CacheBackend, SingleFlight
 from karum_service_taste.core.config import Mode, Settings
 from karum_service_taste.qloo import canonical
+from karum_service_taste.qloo.canonical import cache_key
 from karum_service_taste.qloo.errors import (
     ErrorCode,
     QlooPayloadError,
@@ -79,6 +82,14 @@ _UUID_RE = re.compile(
 _MAX_SIGNAL_ENTITIES = 8
 
 
+@dataclass(frozen=True)
+class _FetchOutcome:
+    """The result of one upstream fetch: the raw response and attempt count."""
+
+    response: TransportResponse
+    attempts: int
+
+
 class QlooClient:
     """Async client for the hackathon Qloo surface.
 
@@ -95,6 +106,8 @@ class QlooClient:
         *,
         transport: Transport | None = None,
         sleep: Sleep | None = None,
+        cache: CacheBackend | None = None,
+        eval_bypass: bool = False,
     ) -> None:
         self._settings = settings
         self._transport = transport
@@ -103,6 +116,11 @@ class QlooClient:
         self._last_rate_limit: RateLimitSnapshot | None = None
         rps = settings.qloo_rps
         self._pacer = Pacer(1.0 / rps if rps > 0 else 0.0, sleep=self._sleep)
+        # Cache (Redis primary, in-memory fallback) unless a caller opts out;
+        # eval traffic sets eval_bypass so its results are never stored back.
+        self._cache = cache
+        self._eval_bypass = eval_bypass
+        self._single_flight = SingleFlight()
 
     # -- introspection -----------------------------------------------------
 
@@ -131,6 +149,18 @@ class QlooClient:
         if self._transport is not None:
             return self._transport.name
         return "fixture" if self._settings.mode is Mode.FIXTURE else "httpx"
+
+    @property
+    def cache(self) -> CacheBackend | None:
+        """The active cache backend, if any (None disables caching)."""
+        return self._cache
+
+    @property
+    def cache_degraded(self) -> bool:
+        """True when the cache backend is degraded (Redis unreachable)."""
+        if self._cache is None:
+            return False
+        return bool(self._cache.degraded)
 
     def _transport_or_default(self) -> Transport:
         if self._transport is None:
@@ -388,8 +418,77 @@ class QlooClient:
         params: list[tuple[str, str]],
         parse: Callable[[Any], QlooResponse],
     ) -> QlooResponse:
-        """One logical call: pace, retry, map failures, parse, record."""
+        """One logical call: cache check (single-flight), fetch, parse, record.
+
+        When a cache backend is configured and the request is not an eval
+        bypass, concurrent callers on the same key share one upstream fetch
+        through the single-flight lock; a cache hit never reaches Qloo.
+        """
         transport = self._transport_or_default()
+        overall_started = time.monotonic()
+
+        async def fetch() -> _FetchOutcome:
+            return await self._fetch_payload(transport, endpoint, path, params)
+
+        cache_hit = False
+        outcome: _FetchOutcome | None = None
+        if not self._eval_bypass and self._cache is not None:
+            key = cache_key(path, params)
+            fetched = await self._single_flight.get_or_fetch(
+                key, self._cache, fetch, self._settings.cache_ttl_seconds
+            )
+            payload = fetched.payload
+            cache_hit = fetched.cache_hit
+            outcome = fetched.outcome
+        else:
+            outcome = await fetch()
+            payload = outcome.response.payload
+
+        try:
+            result = parse(payload)
+        except QlooPayloadError as exc:
+            self._record_failure(endpoint, overall_started, exc.error_code)
+            exc.endpoint = endpoint
+            raise
+
+        total_ms = (time.monotonic() - overall_started) * 1000
+        rows_count = _primary_row_count(result)
+        response = outcome.response if outcome is not None else None
+        result.call = CallRecord(
+            endpoint=endpoint,
+            path=path,
+            parameters=canonical.format_params(params),
+            status=response.status if response is not None else 200,
+            duration_ms=round(total_ms, 3),
+            attempts=outcome.attempts if outcome is not None else 1,
+            rows=rows_count,
+            rate_limit=None if cache_hit else self._last_rate_limit,
+            cache_hit=cache_hit,
+        )
+        self._metrics.record_call(endpoint, duration_ms=total_ms, rows=rows_count)
+        logger.debug(
+            "qloo_call",
+            extra={
+                "endpoint": endpoint,
+                "path": path,
+                "parameters": result.call.parameters,
+                "status": result.call.status,
+                "rows": rows_count,
+                "duration_ms": result.call.duration_ms,
+                "attempts": result.call.attempts,
+                "cache_hit": cache_hit,
+            },
+        )
+        return result
+
+    async def _fetch_payload(
+        self,
+        transport: Transport,
+        endpoint: str,
+        path: str,
+        params: list[tuple[str, str]],
+    ) -> _FetchOutcome:
+        """One upstream call: pace, retry, map failures, return the raw response."""
         started = time.monotonic()
         attempts = 0
         max_attempts = max(1, self._settings.qloo_max_retries + 1)
@@ -452,39 +551,7 @@ class QlooClient:
             break
 
         assert response is not None  # the loop only exits on a response
-        try:
-            result = parse(response.payload)
-        except QlooPayloadError as exc:
-            self._record_failure(endpoint, started, exc.error_code)
-            exc.endpoint = endpoint
-            raise
-
-        total_ms = (time.monotonic() - started) * 1000
-        rows_count = _primary_row_count(result)
-        result.call = CallRecord(
-            endpoint=endpoint,
-            path=path,
-            parameters=canonical.format_params(params),
-            status=response.status,
-            duration_ms=round(total_ms, 3),
-            attempts=attempts,
-            rows=rows_count,
-            rate_limit=self._last_rate_limit,
-        )
-        self._metrics.record_call(endpoint, duration_ms=total_ms, rows=rows_count)
-        logger.debug(
-            "qloo_call",
-            extra={
-                "endpoint": endpoint,
-                "path": path,
-                "parameters": result.call.parameters,
-                "status": response.status,
-                "rows": rows_count,
-                "duration_ms": result.call.duration_ms,
-                "attempts": attempts,
-            },
-        )
-        return result
+        return _FetchOutcome(response=response, attempts=attempts)
 
     def _record_failure(self, endpoint: str, started: float, code: ErrorCode) -> None:
         self._metrics.record_call(endpoint, duration_ms=(time.monotonic() - started) * 1000)
