@@ -97,6 +97,22 @@ A request the pack has not recorded raises `QlooFixtureMissError`: fixture mode
 never invents payloads, and every response flows through the same typed
 parsers as live mode.
 
+One case is served rather than raised. The locked presets were curated below
+what the recordings captured — the Brooklyn session ran with a fifth seed, the
+Mumbai one with a fourth, and the Austin skip probe scored five candidates
+where the preset lists the four that fell below the floor — so the preset's own
+request has no recording. When exactly one recording answers the same question
+with *more* entities, it is served, and the response carries a warning naming
+the substitution:
+
+```
+fixture replay substituted the recorded call: 0044C2D6-C96D-4571-8EFE-E81E8CF722D4
+```
+
+Every other parameter stays significant: a different tag, take, radius, or
+boundary variant is still a miss, and a request two recordings could answer is
+still a miss — a guess is not a replay.
+
 Pack-dependent tests **skip** when the pack is missing locally; CI checks out
 `karum-infra` beside this repo and sets `TASTE_REQUIRE_FIXTURES=1`, so a
 missing pack fails the build instead of silently skipping.

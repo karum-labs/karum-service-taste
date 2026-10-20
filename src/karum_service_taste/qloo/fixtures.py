@@ -10,6 +10,16 @@ them by canonical request signature
 matches nothing raises :class:`QlooFixtureMissError` — fixture mode cannot
 invent data, and a miss is a bug (PLAN.md §4).
 
+One exception exists, and it is narrow. The locked presets trim their seed
+and candidate lists below what the recordings captured — the Brooklyn session
+ran with a fifth signal, the Mumbai one with a fourth — so the preset's
+request has no recording of its own. A recording that differs *only* by
+carrying more entities answers the same question with a superset of the
+signals, and when exactly one such recording exists it is served, with a
+warning that names the substitution. Every other parameter — the tag, the
+take, the radius, the boundary variant — stays significant, and an ambiguous
+replay is still a miss: guessing is not replaying.
+
 Envelope schema (``fixture_version`` 1)::
 
     {
@@ -111,6 +121,38 @@ class FixtureEntry:
     recorded: str | None = None
 
 
+#: The parameters whose values are comma-separated lists of entity ids.
+#:
+#: These are the only parameters a trimmed request may differ on: the locked
+#: presets carry fewer seed or candidate entities than the recording session
+#: did, and the recording answers the same question with a superset of the
+#: signals. Every other list parameter — the category tag, the boundary
+#: variant — changes what the upstream answers and stays significant.
+ENTITY_LIST_PARAMS = frozenset(
+    {
+        "signal.interests.entities",
+        "filter.results.entities",
+        "filter.exclude.entities",
+        "a.signal.interests.entities",
+        "b.signal.interests.entities",
+    }
+)
+
+
+@dataclass(frozen=True)
+class FixtureMatch:
+    """One recording, and what it cost to serve it."""
+
+    entry: FixtureEntry
+    #: The entity ids the recording carried that the request left out.
+    omitted: tuple[str, ...] = ()
+
+    @property
+    def substituted(self) -> bool:
+        """Whether the recording answered a wider request than the one asked."""
+        return bool(self.omitted)
+
+
 class FixturePack:
     """The indexed fixture pack: canonical request signature -> recording."""
 
@@ -138,6 +180,45 @@ class FixturePack:
     def lookup(self, path: str, params: Sequence[tuple[str, str]]) -> FixtureEntry | None:
         """The recording for this exact canonical request, if any."""
         return self._entries.get(signature(path, params))
+
+    def match(self, path: str, params: Sequence[tuple[str, str]]) -> FixtureMatch | None:
+        """The recording that answers this request.
+
+        The exact recording wins. When the request has none, a recording that
+        differs only by carrying *more* entities is accepted — but only when
+        exactly one such recording exists. Two candidates mean the request
+        cannot be answered by replay, and a guess is worse than a miss.
+        """
+        exact = self.lookup(path, params)
+        if exact is not None:
+            return FixtureMatch(entry=exact)
+        wanted = dict(signature(path, params)[1])
+        found: list[FixtureMatch] = []
+        for entry_signature, entry in self._entries.items():
+            if entry_signature[0] != path:
+                continue
+            recorded = dict(entry_signature[1])
+            if set(recorded) != set(wanted):
+                continue
+            omitted: list[str] = []
+            differs = False
+            for name, value in wanted.items():
+                if name in ENTITY_LIST_PARAMS:
+                    asked = tuple(value)
+                    have = tuple(recorded[name])
+                    if not set(asked).issubset(have):
+                        differs = True
+                        break
+                    omitted.extend(part for part in have if part not in asked)
+                elif recorded[name] != value:
+                    differs = True
+                    break
+            if differs:
+                continue
+            found.append(FixtureMatch(entry=entry, omitted=tuple(sorted(omitted))))
+        if len(found) != 1:
+            return None
+        return found[0]
 
     def _load(self) -> None:
         base = self._root / PACK_SUBDIR
@@ -230,20 +311,32 @@ class FixtureTransport:
         return self._pack
 
     async def get(self, path: str, params: Sequence[tuple[str, str]]) -> TransportResponse:
-        entry = self._pack.lookup(path, params)
-        if entry is None:
+        match = self._pack.match(path, params)
+        if match is None:
             missing = render_signature(path, params)
             raise QlooFixtureMissError(
                 f"fixture mode has no recording for {missing!r}; the pack at "
                 f"{self._pack.root} holds {len(self._pack.entries)} recordings"
             )
+        entry = match.entry
         allowed = expected_kinds(path, params)
         if allowed and entry.kind not in allowed:
             raise QlooFixtureError(
                 f"fixture {entry.path.name} is kind {entry.kind!r} but the request "
                 f"is {sorted(allowed)}"
             )
-        payload = reconstruct_payload(entry.kind, entry.rows, entry.warnings)
+        warnings = list(entry.warnings)
+        if match.substituted:
+            # The recording answered a wider request than the one asked. Say so
+            # in the response, so the run carries the substitution all the way
+            # to the operator's warning banner.
+            warnings.append(
+                {
+                    "type": "fixture replay substituted the recorded call",
+                    "signal.interests.entities": list(match.omitted),
+                }
+            )
+        payload = reconstruct_payload(entry.kind, entry.rows, warnings)
         return TransportResponse(status=entry.status, headers={}, payload=payload)
 
     async def aclose(self) -> None:
