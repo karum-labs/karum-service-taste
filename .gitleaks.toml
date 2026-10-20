@@ -42,4 +42,7 @@ regexes = [
     '''^your[-_].*$''',
     '''^<.*>$''',
     '''karum''',
+    # The redaction test needs a key-shaped value to prove the filter blanks
+    # it. The value is a fake, committed on purpose.
+    '''qloo-secret-key-abc123''',
 ]
