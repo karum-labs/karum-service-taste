@@ -130,6 +130,11 @@ class QlooClient:
         return self._settings.qloo_base_url
 
     @property
+    def fanout_cap(self) -> int:
+        """The maximum parallel outbound Qloo calls, from the settings."""
+        return self._settings.fanout_cap
+
+    @property
     def metrics(self) -> QlooMetrics:
         """Call counters and latency aggregates for health reporting."""
         return self._metrics

@@ -1,7 +1,7 @@
 [project]
 name = "karum-service-taste"
 version = "0.1.0"
-description = "Qloo integration, caching, and taste scoring for the Karum tenant-mix leasing agent."
+description = "Qloo integration, caching, and taste scoring for the Karum brand agent."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [

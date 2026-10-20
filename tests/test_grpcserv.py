@@ -30,6 +30,33 @@ def test_servicer_reuses_one_event_loop_across_rpcs():
     assert servicer._run(loop_id()) == servicer._run(loop_id())
 
 
+def test_scout_uses_the_configured_fanout_cap(monkeypatch):
+    """TASTE_FANOUT_CAP must reach the scout, not sit in the settings."""
+    captured: dict = {}
+
+    async def fake_scout_doors(client, seed, **kwargs):
+        captured.update(kwargs)
+        return ScoutResult(doors=[], skip_list=[], error_code=ErrorCode.UNSPECIFIED)
+
+    monkeypatch.setattr("karum_service_taste.grpcserv.scout_doors", fake_scout_doors)
+
+    class FakeClient:
+        fanout_cap = 7
+
+    servicer = TasteServicer(FakeClient())
+    request = taste_pb2.ScoutDoorsRequest(
+        seed=taste_pb2.BrandSeed(
+            brand_text="Sola",
+            entities=[common_pb2.EntityRef(id="seed-1", name="Sola")],
+        ),
+        location=common_pb2.GeoPoint(latitude=30.2672, longitude=-97.7431),
+        radius_meters=8000,
+    )
+    servicer.ScoutDoors(request, None)
+
+    assert captured["fanout_limit"] == 7
+
+
 def test_scout_message_keeps_the_door_and_the_skip_reason():
     message = scout_message(
         ScoutResult(

@@ -1,9 +1,9 @@
 """FastAPI application factory for service-taste.
 
-Creates the ASGI app, wires routes, and configures logging. The gRPC server that
-the gateway dials will be started alongside this app in a later pass; for now the
-HTTP surface exposes ``/health`` so the service is probeable by Compose and
-Cloud Run.
+Creates the ASGI app, wires routes, and configures logging. The gRPC server the
+gateway dials starts beside this app in the lifespan, so the two share one
+process and one settings object; the HTTP surface exposes ``/health`` so the
+service is probeable by Compose and Cloud Run.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Karum service-taste",
-        description="Qloo integration, caching, and taste scoring for the Karum tenant-mix leasing agent.",
+        description="Qloo integration, caching, and taste scoring for the Karum brand agent.",
         version=__version__,
         # The service is called by the gateway, not browsed directly, so the
         # auto-generated docs are only useful in local development.

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # Service identity -----------------------------------------------------
     #: HTTP port. Compose and Cloud Run probe /health here.
     port: int = 8081
+    #: Interface the HTTP server binds. The default serves the container; a
+    #: laptop run can narrow it to the loopback.
+    host: str = "0.0.0.0"
     #: gRPC port the gateway dials. Health stays on ``port``.
     grpc_port: int = 9091
     #: Operational mode reported on /health.

@@ -33,7 +33,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# Cloud Run injects the port; default to 8081 to match local Compose.
+# The HTTP port the service listens on. Cloud Run injects its own port; the
+# default matches local Compose.
 ENV TASTE_PORT=8081
 EXPOSE 8081
 EXPOSE 9091
@@ -42,4 +43,4 @@ EXPOSE 9091
 RUN useradd --create-home --uid 1000 appuser
 USER appuser
 
-CMD ["uvicorn", "karum_service_taste.main:app", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["python", "-m", "karum_service_taste"]

@@ -284,6 +284,7 @@ class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
                 location=location,
                 radius_meters=request.radius_meters,
                 category_tags=tags,
+                fanout_limit=self.client.fanout_cap,
             )
         )
         return scout_message(result)

@@ -61,7 +61,8 @@ Key variables:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `TASTE_PORT` | `8081` | HTTP/gRPC listen port |
+| `TASTE_PORT` | `8081` | HTTP listen port; `/health` is served here |
+| `TASTE_GRPC_PORT` | `9091` | gRPC listen port the gateway dials |
 | `TASTE_MODE` | `fixture` | `live`, `fixture`, or `degraded`; reported on `/health` |
 | `TASTE_QLOO_API_KEY` | _(empty)_ | Qloo API key — **never commit** |
 | `TASTE_QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo base URL |
