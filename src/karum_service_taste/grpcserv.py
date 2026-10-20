@@ -7,6 +7,7 @@ the gateway can cancel an in-flight scout when the client aborts the job.
 from __future__ import annotations
 
 import asyncio
+import threading
 from collections.abc import Sequence
 from concurrent import futures
 
@@ -30,10 +31,6 @@ from karum_service_taste.taste.seed import resolve_brand_seed
 from karum_service_taste.taste.tags import resolve_tags
 
 
-def _run(coro):
-    return asyncio.run(coro)
-
-
 def _code(code: ErrorCode) -> int:
     return common_pb2.ErrorCode.Value(code.proto_name)
 
@@ -41,20 +38,44 @@ def _code(code: ErrorCode) -> int:
 def _entity(ref: EntityRefOut | None) -> common_pb2.EntityRef:
     if ref is None:
         return common_pb2.EntityRef()
-    return common_pb2.EntityRef(id=ref.id, type=ref.type, name=ref.name, city=ref.city or "")
+    place = None
+    if ref.place is not None:
+        location = None
+        if ref.place.lat is not None and ref.place.lon is not None:
+            location = common_pb2.GeoPoint(latitude=ref.place.lat, longitude=ref.place.lon)
+        place = common_pb2.PlaceFacts(
+            address=ref.place.address,
+            website=ref.place.website,
+            phone=ref.place.phone,
+            hours=ref.place.hours,
+            is_closed=ref.place.is_closed,
+            location=location,
+        )
+    return common_pb2.EntityRef(
+        id=ref.id, type=ref.type, name=ref.name, city=ref.city or "", place=place
+    )
 
 
 def _refs(items: Sequence) -> list[EntityRefOut]:
     out: list[EntityRefOut] = []
     for item in items:
-        out.append(EntityRefOut(id=item.id, type=item.type or "urn:entity:place", name=item.name, city=item.city or None))
+        out.append(
+            EntityRefOut(
+                id=item.id,
+                type=item.type or "urn:entity:place",
+                name=item.name,
+                city=item.city or None,
+            )
+        )
     return out
 
 
 def _score(score) -> common_pb2.SubScore:
     if score is None:
         return common_pb2.SubScore()
-    return common_pb2.SubScore(name=score.name, value=score.value, raw_value=score.raw_value, inputs=list(score.inputs))
+    return common_pb2.SubScore(
+        name=score.name, value=score.value, raw_value=score.raw_value, inputs=list(score.inputs)
+    )
 
 
 def _tag(tag) -> common_pb2.Tag:
@@ -93,10 +114,14 @@ def scout_message(result: ScoutResult) -> taste_pb2.ScoutDoorsResponse:
             taste_pb2.DoorCandidate(
                 entity=_entity(door.entity),
                 affinity=_score(door.affinity),
-                demographic_alignment=_score(door.demographic_alignment) if door.demographic_alignment else None,
+                demographic_alignment=_score(door.demographic_alignment)
+                if door.demographic_alignment
+                else None,
                 shared_tags=[_tag(tag) for tag in door.shared_tags],
                 explainability=[
-                    taste_pb2.ExplainabilityContribution(entity_id=item.entity_id, score=item.score, label=item.label)
+                    taste_pb2.ExplainabilityContribution(
+                        entity_id=item.entity_id, score=item.score, label=item.label
+                    )
                     for item in door.explainability
                 ],
                 distance_meters=door.distance_meters or 0,
@@ -156,11 +181,20 @@ def tags_message(result: TagResolution) -> taste_pb2.ResolveTagsResponse:
             )
             for item in result.resolved
         ],
-        unresolved=[taste_pb2.UnresolvedTag(chip=item.chip, reason=item.reason) for item in result.unresolved],
+        unresolved=[
+            taste_pb2.UnresolvedTag(chip=item.chip, reason=item.reason)
+            for item in result.unresolved
+        ],
         error_code=_code(result.error_code),
         error_message=result.error_message,
         evidence=_evidence(result.evidence),
     )
+
+
+def _geo(point) -> common_pb2.GeoPoint | None:
+    if point is None:
+        return None
+    return common_pb2.GeoPoint(latitude=point.lat, longitude=point.lon)
 
 
 def heatmap_message(result: HeatmapResult) -> taste_pb2.GetLocalityHeatmapResponse:
@@ -174,26 +208,57 @@ def heatmap_message(result: HeatmapResult) -> taste_pb2.GetLocalityHeatmapRespon
         evidence=_evidence(result.evidence),
         cells=[
             taste_pb2.HeatmapPoint(
-                location=common_pb2.GeoPoint(latitude=cell.location.lat, longitude=cell.location.lon) if cell.location else None,
+                location=_geo(cell.location),
+                geohash=cell.geohash or "",
                 affinity=cell.affinity or 0,
+                affinity_rank=int(cell.affinity_rank or 0),
+                popularity=cell.popularity or 0,
             )
             for cell in result.cells
         ],
-        localities=[taste_pb2.LocalityCluster(name=item.name) for item in result.localities],
+        localities=[
+            taste_pb2.LocalityCluster(
+                name=item.name,
+                centroid=_geo(item.centroid),
+                polygon=[
+                    point
+                    for point in (_geo(vertex) for vertex in item.polygon)
+                    if point is not None
+                ],
+                affinity=item.affinity or 0,
+            )
+            for item in result.localities
+        ],
     )
 
 
 class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
-    """Adapts the in-process taste functions onto the gRPC contract."""
+    """Adapts the in-process taste functions onto the gRPC contract.
+
+    All RPCs share one event loop running on a background thread. The Qloo
+    client opens a pooled ``httpx.AsyncClient`` lazily on first use, so it must
+    stay on the loop that created it; ``asyncio.run`` per RPC closes that loop
+    and poisons the pool for every later call.
+    """
 
     def __init__(self, client: QlooClient) -> None:
         self.client = client
+        self._loop = asyncio.new_event_loop()
+        self._loop_thread = threading.Thread(
+            target=self._loop.run_forever,
+            name="taste-grpc-loop",
+            daemon=True,
+        )
+        self._loop_thread.start()
+
+    def _run(self, coro):
+        return asyncio.run_coroutine_threadsafe(coro, self._loop).result()
 
     def ResolveBrandSeed(self, request, context):  # noqa: N802
         location = None
         if request.HasField("location"):
             location = (request.location.latitude, request.location.longitude)
-        result = _run(
+        result = self._run(
             resolve_brand_seed(
                 self.client,
                 request.brand_query,
@@ -206,13 +271,13 @@ class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
         return seed_message(result)
 
     def ResolveTags(self, request, context):  # noqa: N802
-        return tags_message(_run(resolve_tags(self.client, list(request.chips))))
+        return tags_message(self._run(resolve_tags(self.client, list(request.chips))))
 
     def ScoutDoors(self, request, context):  # noqa: N802
         seed = _refs(request.seed.entities)
         location = (request.location.latitude, request.location.longitude)
         tags = [tag.urn for tag in request.category_tags if tag.urn]
-        result = _run(
+        result = self._run(
             scout_doors(
                 self.client,
                 seed,
@@ -224,7 +289,7 @@ class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
         return scout_message(result)
 
     def GetLocalityHeatmap(self, request, context):  # noqa: N802
-        result = _run(
+        result = self._run(
             locality_heatmap(
                 self.client,
                 _refs(request.entities),
@@ -248,7 +313,7 @@ class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
                 error_message="compare needs a venue id and a brand id",
             )
             return _compare_message(empty)
-        result = _run(compare_audiences(self.client, venue_id, brand_id))
+        result = self._run(compare_audiences(self.client, venue_id, brand_id))
         return _compare_message(result)
 
 

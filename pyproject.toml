@@ -14,6 +14,11 @@ dependencies = [
     "grpcio>=1.84.0",
     "grpcio-tools>=1.84.0",
     "httpx>=0.28.1",
+    # Pinned to the generator in karum-infra/proto/buf.gen.yaml
+    # (protocolbuffers/python:v36.2). The generated modules carry
+    # "Protobuf Python Version: 7.36.2" and validate the runtime on import,
+    # so a runtime older than the gencode fails the service at startup.
+    "protobuf==7.36.2",
     "pydantic>=2.14.1",
     "pydantic-settings>=2.15.0",
     "redis>=5.0.0",

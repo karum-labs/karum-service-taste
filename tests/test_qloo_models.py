@@ -92,6 +92,20 @@ def test_place_rows_carry_the_block_consumers_need() -> None:
     assert any(row.properties.is_closed is not None for row in rows)
 
 
+def test_place_properties_tolerate_a_non_list_good_for() -> None:
+    properties = models.PlaceProperties.model_validate(
+        {
+            "address": "1 Main St",
+            "good_for": "urn:tag:occasion:casual",
+            "hours": None,
+            "website": "https://example.com",
+        }
+    )
+    assert properties.good_for == []
+    assert properties.hours == {}
+    assert properties.website == "https://example.com"
+
+
 def test_place_row_keeps_price_facts() -> None:
     entry = _entry("qloo/austin-wholesale/insights-doors-baseline.json")
     rows = [models.PlaceRow.model_validate(row) for row in entry.rows]

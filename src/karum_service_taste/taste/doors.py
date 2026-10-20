@@ -49,6 +49,7 @@ from karum_service_taste.taste.schemas import (
     DoorOut,
     EntityRefOut,
     ExplainabilityOut,
+    PlaceFactsOut,
     ScoutResult,
     SkipItemOut,
     TagOut,
@@ -129,6 +130,7 @@ async def scout_doors(
     raw_by_id: dict[str, float] = {}
     seen: set[str] = set()
     missing: set[str] = set()
+    seed_ids = {e.id for e in seed if e.id}
     for tag, response in zip(categories, responses, strict=True):
         call_id = ""
         if response.call is not None:
@@ -142,6 +144,8 @@ async def scout_doors(
         for row in response.rows:
             if row.entity_id in seen:
                 continue
+            if row.entity_id in seed_ids:
+                continue  # drop results that are seed entities
             seen.add(row.entity_id)
             doors.append(
                 _door_from_row(
@@ -395,6 +399,53 @@ def _entity_ref(row: PlaceRow) -> EntityRefOut:
         type=row.type or "urn:entity:place",
         name=row.name,
         city=geocode.city if geocode is not None else None,
+        place=_place_facts(row),
+    )
+
+
+_HOUR_DAYS = (
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+)
+
+
+def _hours_text(hours: dict) -> str:
+    """Fold Qloo's per-day intervals into one display line."""
+    parts: list[str] = []
+    for day in _HOUR_DAYS:
+        intervals = hours.get(day)
+        if not intervals:
+            continue
+        for interval in intervals:
+            if getattr(interval, "closed", False):
+                parts.append(f"{day[:3].title()}: closed")
+                continue
+            opens = getattr(interval, "opens", None)
+            closes = getattr(interval, "closes", None)
+            if opens and closes:
+                parts.append(f"{day[:3].title()} {opens}-{closes}")
+            elif opens:
+                parts.append(f"{day[:3].title()} from {opens}")
+    return "; ".join(parts)
+
+
+def _place_facts(row: PlaceRow) -> PlaceFactsOut:
+    """The recorded property block Qloo returned beside a place row."""
+    properties = row.properties
+    location = row.location
+    return PlaceFactsOut(
+        address=properties.address or "",
+        website=properties.website or "",
+        phone=properties.phone or "",
+        hours=_hours_text(properties.hours),
+        is_closed=bool(properties.is_closed),
+        lat=location.lat if location is not None else None,
+        lon=location.lon if location is not None else None,
     )
 
 

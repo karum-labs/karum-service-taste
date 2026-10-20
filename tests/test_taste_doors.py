@@ -17,6 +17,7 @@ import pytest
 from karum_service_taste.qloo.errors import ErrorCode
 from karum_service_taste.qloo.fixtures import FixturePack
 from karum_service_taste.taste import scout_doors
+from karum_service_taste.taste.schemas import EntityRefOut
 from support import (
     ALPHA,
     AUSTIN,
@@ -289,6 +290,31 @@ async def test_merged_categories_dedupe_and_keep_encounter_order() -> None:
     assert result.doors[2].evidence_ids == ["ev-0002"]
     assert result.doors[0].distance_meters is None  # rows without a point stay unflagged
     assert result.doors[0].outside_city is False
+
+
+async def test_seed_entities_are_dropped_from_the_board() -> None:
+    """A reference venue used as a vibe is never pitched as a door (PLAN.md section 14)."""
+    seed = [
+        EntityRefOut(id=ALPHA, type="urn:entity:place", name="Alpha"),
+        EntityRefOut(id=BETA, type="urn:entity:place", name="Beta"),
+    ]
+    transport = FakeTransport(
+        ok(board(door_row(ALPHA, "Alpha"), door_row(BETA, "Beta"), door_row(GAMMA, "Gamma"))),
+        ok(board(door_row(GAMMA, "Gamma"), door_row(ALPHA, "Alpha"))),
+        ok(EMPTY_DEMOGRAPHICS),
+        ok(EMPTY_DEMOGRAPHICS),
+    )
+    result = await scout_doors(
+        make_client(transport),
+        seed,
+        location=AUSTIN,
+        radius_meters=8000,
+        category_tags=["tag-a", "tag-b"],
+    )
+
+    assert [door.entity.id for door in result.doors] == [GAMMA]
+    assert [door.rank for door in result.doors] == [1]
+    assert result.skip_list == []
 
 
 async def test_empty_board_is_an_explicit_miss() -> None:

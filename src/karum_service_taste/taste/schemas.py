@@ -16,6 +16,20 @@ from karum_service_taste.qloo.errors import ErrorCode
 from karum_service_taste.qloo.models import CallRecord
 
 
+class PlaceFactsOut(BaseModel):
+    """The recorded Qloo place fields a card can cite when Places is missing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    address: str = ""
+    website: str = ""
+    phone: str = ""
+    hours: str = ""
+    is_closed: bool = False
+    lat: float | None = None
+    lon: float | None = None
+
+
 class EntityRefOut(BaseModel):
     """One resolved entity: id, type URN, display name, city when known."""
 
@@ -25,6 +39,7 @@ class EntityRefOut(BaseModel):
     type: str
     name: str
     city: str | None = None
+    place: PlaceFactsOut | None = None
 
 
 class SeedCandidateOut(BaseModel):

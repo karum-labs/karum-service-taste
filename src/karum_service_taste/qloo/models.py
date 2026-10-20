@@ -131,6 +131,18 @@ class PlaceProperties(QlooModel):
     price_range: PriceRange | None = None
     website: str | None = None
 
+    @field_validator("good_for", mode="before")
+    @classmethod
+    def _good_for_list(cls, value: Any) -> Any:
+        """Live rows sometimes carry a string here; it is not a card field."""
+        return value if isinstance(value, list) else []
+
+    @field_validator("hours", mode="before")
+    @classmethod
+    def _hours_dict(cls, value: Any) -> Any:
+        """A closed or unknown venue can send ``null`` instead of a map."""
+        return value if isinstance(value, dict) else {}
+
 
 class SignalContribution(QlooModel):
     """One seed entity's score inside an explainability block."""
