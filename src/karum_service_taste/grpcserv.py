@@ -138,6 +138,7 @@ def scout_message(result: ScoutResult) -> taste_pb2.ScoutDoorsResponse:
                 affinity=_score(item.affinity),
                 reason=_SKIP.get(item.reason.value, taste_pb2.SKIP_REASON_CODE_LOW_AFFINITY),
                 reason_detail=item.reason_detail,
+                floor=item.floor,
             )
         )
     return taste_pb2.ScoutDoorsResponse(
@@ -147,6 +148,7 @@ def scout_message(result: ScoutResult) -> taste_pb2.ScoutDoorsResponse:
         error_code=_code(result.error_code),
         error_message=result.error_message,
         evidence=_evidence(result.evidence),
+        affinity_floor=result.affinity_floor,
     )
 
 
@@ -284,6 +286,8 @@ class TasteServicer(taste_pb2_grpc.TasteServiceServicer):
                 location=location,
                 radius_meters=request.radius_meters,
                 category_tags=tags,
+                skip_candidate_ids=list(request.skip_candidate_ids),
+                skip_candidate_names=list(request.skip_candidate_names),
                 fanout_limit=self.client.fanout_cap,
             )
         )

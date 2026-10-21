@@ -19,7 +19,7 @@ Part of the five-repo Karum layout:
 - **Data normalization & scoring** — extracts affinity scores, strips extraneous metadata, and flattens cultural tags.
 - **Caching** — stores Qloo responses (in Redis or in-process) so repeated runs don't burn through API credits.
 
-The gRPC RPCs (`ResolveEntities`, `ResolveTags`, `GetBlockProfile`, `ScoreCandidates`, plus optional `GetHeatmap` / `CompareSets`) are defined in the shared protos in [`karum-infra`](https://github.com/karum-labs/karum-infra).
+The gRPC RPCs (`ResolveBrandSeed`, `ResolveTags`, `ScoutDoors`, `GetLocalityHeatmap`, `CompareAudiences`) are defined in the shared protos in [`karum-infra`](https://github.com/karum-labs/karum-infra). `ScoutDoors` is the one the gateway calls for a run: it takes the confirmed seed, the city point and radius, the category tags, and the skip candidates (verified entity ids, venue names, or both), and it returns the ranked door board, the skip list with reasons, the warnings, and the evidence bundle.
 
 ## Run path
 
@@ -47,6 +47,10 @@ curl http://localhost:8081/health
     "transport": "fixture",
     "metrics": {},
     "rate_limit": null
+  },
+  "cache": {
+    "backend": "memory",
+    "degraded": false
   }
 }
 ```
@@ -81,7 +85,14 @@ Key variables:
 
 It also exposes the Qloo client's active transport and call metrics
 (calls, errors by code, rows, latency) so the judging dashboard can see what
-the service has done without scraping logs.
+the service has done without scraping logs, plus the cache block: the cache
+backend in use (`redis` or `memory`) and whether it is degraded.
+
+The `status` field is an honest read of the active transport, not a constant:
+it is `degraded` when fixture mode has no recorded pack or when the live
+transport has no Qloo key, and `ok` otherwise. The HTTP status stays 200 in
+both cases, so a liveness probe does not fail over a configuration gap that a
+per-request error would explain.
 
 ### Fixtures & offline mode
 

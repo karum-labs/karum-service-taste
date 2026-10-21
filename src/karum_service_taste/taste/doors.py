@@ -353,6 +353,7 @@ async def scout_doors(
         warnings=dedupe_warnings(warnings),
         error_code=ErrorCode.UNSPECIFIED,
         evidence=evidence,
+        affinity_floor=floor or 0.0,
     )
 
 

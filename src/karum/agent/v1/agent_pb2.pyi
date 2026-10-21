@@ -156,16 +156,18 @@ class Incumbent(_message.Message):
     def __init__(self, name: _Optional[str] = ..., sources: _Optional[_Iterable[_Union[GroundingSource, _Mapping]]] = ...) -> None: ...
 
 class MenuAuditTarget(_message.Message):
-    __slots__ = ("door", "website", "taste_tags", "skip_candidate")
+    __slots__ = ("door", "website", "taste_tags", "skip_candidate", "qloo_incumbent_names")
     DOOR_FIELD_NUMBER: _ClassVar[int]
     WEBSITE_FIELD_NUMBER: _ClassVar[int]
     TASTE_TAGS_FIELD_NUMBER: _ClassVar[int]
     SKIP_CANDIDATE_FIELD_NUMBER: _ClassVar[int]
+    QLOO_INCUMBENT_NAMES_FIELD_NUMBER: _ClassVar[int]
     door: _common_pb2.EntityRef
     website: str
     taste_tags: _containers.RepeatedCompositeFieldContainer[_common_pb2.Tag]
     skip_candidate: bool
-    def __init__(self, door: _Optional[_Union[_common_pb2.EntityRef, _Mapping]] = ..., website: _Optional[str] = ..., taste_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., skip_candidate: _Optional[bool] = ...) -> None: ...
+    qloo_incumbent_names: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, door: _Optional[_Union[_common_pb2.EntityRef, _Mapping]] = ..., website: _Optional[str] = ..., taste_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., skip_candidate: _Optional[bool] = ..., qloo_incumbent_names: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class MenuAuditResult(_message.Message):
     __slots__ = ("door", "succeeded", "shelf_unknown", "incumbents", "competitor_count", "shelf_opportunity", "menu_summary", "sources")
@@ -234,20 +236,22 @@ class Battlecard(_message.Message):
     def __init__(self, headline: _Optional[str] = ..., incumbent_name: _Optional[str] = ..., talking_points: _Optional[_Iterable[str]] = ..., compare_summary: _Optional[str] = ...) -> None: ...
 
 class DraftDoorPitchRequest(_message.Message):
-    __slots__ = ("meta", "mode", "brand", "door", "city", "max_words")
+    __slots__ = ("meta", "mode", "brand", "door", "city", "max_words", "evidence_ids")
     META_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
     BRAND_FIELD_NUMBER: _ClassVar[int]
     DOOR_FIELD_NUMBER: _ClassVar[int]
     CITY_FIELD_NUMBER: _ClassVar[int]
     MAX_WORDS_FIELD_NUMBER: _ClassVar[int]
+    EVIDENCE_IDS_FIELD_NUMBER: _ClassVar[int]
     meta: _common_pb2.RequestMeta
     mode: CampaignMode
     brand: BrandContext
     door: DoorContext
     city: str
     max_words: int
-    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., mode: _Optional[_Union[CampaignMode, str]] = ..., brand: _Optional[_Union[BrandContext, _Mapping]] = ..., door: _Optional[_Union[DoorContext, _Mapping]] = ..., city: _Optional[str] = ..., max_words: _Optional[int] = ...) -> None: ...
+    evidence_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., mode: _Optional[_Union[CampaignMode, str]] = ..., brand: _Optional[_Union[BrandContext, _Mapping]] = ..., door: _Optional[_Union[DoorContext, _Mapping]] = ..., city: _Optional[str] = ..., max_words: _Optional[int] = ..., evidence_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class DraftDoorPitchResponse(_message.Message):
     __slots__ = ("script", "battlecard", "recommended_sku", "mode_paragraph", "attribution", "error_code", "error_message")

@@ -200,6 +200,7 @@ class SkipItemOut(BaseModel):
     affinity: SubScoreOut | None = None
     reason: SkipReason
     reason_detail: str = ""
+    floor: float = 0.0
 
 
 class ScoutResult(BaseModel):
@@ -213,6 +214,7 @@ class ScoutResult(BaseModel):
     error_code: ErrorCode
     error_message: str = ""
     evidence: list[CallRecord] = Field(default_factory=list)
+    affinity_floor: float = 0.0
 
 
 class GeoPointOut(BaseModel):

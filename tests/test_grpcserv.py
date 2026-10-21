@@ -88,6 +88,57 @@ def test_scout_message_keeps_the_door_and_the_skip_reason():
     assert message.error_code == common_pb2.ERROR_CODE_UNSPECIFIED
 
 
+def test_scout_forwards_the_skip_candidates(monkeypatch):
+    """The skip candidates must reach the scout, or the skip list stays empty."""
+    captured: dict = {}
+
+    async def fake_scout_doors(client, seed, **kwargs):
+        captured.update(kwargs)
+        return ScoutResult(doors=[], skip_list=[], error_code=ErrorCode.UNSPECIFIED)
+
+    monkeypatch.setattr("karum_service_taste.grpcserv.scout_doors", fake_scout_doors)
+
+    class FakeClient:
+        fanout_cap = 4
+
+    servicer = TasteServicer(FakeClient())
+    request = taste_pb2.ScoutDoorsRequest(
+        seed=taste_pb2.BrandSeed(
+            entities=[common_pb2.EntityRef(id="seed-1", name="Sola")],
+        ),
+        location=common_pb2.GeoPoint(latitude=30.2672, longitude=-97.7431),
+        radius_meters=8000,
+        skip_candidate_ids=["urn:entity:place:skip-1", "urn:entity:place:skip-2"],
+        skip_candidate_names=["Maggie Mae's"],
+    )
+    servicer.ScoutDoors(request, None)
+
+    assert captured["skip_candidate_ids"] == ["urn:entity:place:skip-1", "urn:entity:place:skip-2"]
+    assert captured["skip_candidate_names"] == ["Maggie Mae's"]
+
+
+def test_scout_message_keeps_the_floor_and_the_reason_detail():
+    """The floor and the reason line must survive the wire."""
+    message = scout_message(
+        ScoutResult(
+            doors=[],
+            skip_list=[
+                SkipItemOut(
+                    entity=EntityRefOut(id="d-9", type="urn:entity:place", name="Maggie Mae's"),
+                    reason=SkipReason.LOW_AFFINITY,
+                    reason_detail="0.8160 below the returned floor 0.8386",
+                    floor=0.8386,
+                )
+            ],
+            error_code=ErrorCode.UNSPECIFIED,
+            affinity_floor=0.8386,
+        )
+    )
+    assert message.skip_list[0].floor == 0.8386
+    assert message.skip_list[0].reason_detail == "0.8160 below the returned floor 0.8386"
+    assert message.affinity_floor == 0.8386
+
+
 def test_heatmap_message_keeps_locality_geometry_and_place_facts():
     point = GeoPointOut(lat=40.71, lon=-73.96)
     message = heatmap_message(

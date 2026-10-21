@@ -122,6 +122,7 @@ def skip_item(
         affinity=affinity_subscore(raw, peers, inputs=[f"pool={len(peers)}", f"floor={floor:.4f}"]),
         reason=SkipReason.LOW_AFFINITY,
         reason_detail=f"{raw:.4f} below the returned floor {floor:.4f}",
+        floor=floor,
     )
 
 

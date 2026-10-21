@@ -1,7 +1,8 @@
-"""Structured logging for service-taste.
+"""Logging setup for service-taste.
 
-Logs are emitted as JSON so Cloud Run and the judging-window dashboard can parse
-them. The Qloo API key is never written to a log line; see :func:`configure`.
+Logs are emitted as single plain-text lines (timestamp, level, logger name,
+message) that Cloud Run and the judging-window dashboard can filter. The Qloo
+API key is never written to a log line; see :func:`configure`.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ class RedactingFilter(logging.Filter):
 
 
 def configure() -> None:
-    """Install a JSON logging configuration honouring the ``LOG_LEVEL`` setting.
+    """Install the logging configuration honouring the ``LOG_LEVEL`` setting.
 
     Idempotent: safe to call more than once (for example from tests).
     """

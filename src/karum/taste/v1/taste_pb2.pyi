@@ -192,50 +192,58 @@ class DoorCandidate(_message.Message):
     def __init__(self, entity: _Optional[_Union[_common_pb2.EntityRef, _Mapping]] = ..., affinity: _Optional[_Union[_common_pb2.SubScore, _Mapping]] = ..., demographic_alignment: _Optional[_Union[_common_pb2.SubScore, _Mapping]] = ..., shared_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., explainability: _Optional[_Iterable[_Union[ExplainabilityContribution, _Mapping]]] = ..., demographics: _Optional[_Union[DemographicProfile, _Mapping]] = ..., distance_meters: _Optional[float] = ..., outside_city: _Optional[bool] = ..., rank: _Optional[int] = ..., evidence_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class SkipItem(_message.Message):
-    __slots__ = ("entity", "affinity", "reason", "reason_detail", "competitor_count")
+    __slots__ = ("entity", "affinity", "reason", "reason_detail", "competitor_count", "floor")
     ENTITY_FIELD_NUMBER: _ClassVar[int]
     AFFINITY_FIELD_NUMBER: _ClassVar[int]
     REASON_FIELD_NUMBER: _ClassVar[int]
     REASON_DETAIL_FIELD_NUMBER: _ClassVar[int]
     COMPETITOR_COUNT_FIELD_NUMBER: _ClassVar[int]
+    FLOOR_FIELD_NUMBER: _ClassVar[int]
     entity: _common_pb2.EntityRef
     affinity: _common_pb2.SubScore
     reason: SkipReasonCode
     reason_detail: str
     competitor_count: int
-    def __init__(self, entity: _Optional[_Union[_common_pb2.EntityRef, _Mapping]] = ..., affinity: _Optional[_Union[_common_pb2.SubScore, _Mapping]] = ..., reason: _Optional[_Union[SkipReasonCode, str]] = ..., reason_detail: _Optional[str] = ..., competitor_count: _Optional[int] = ...) -> None: ...
+    floor: float
+    def __init__(self, entity: _Optional[_Union[_common_pb2.EntityRef, _Mapping]] = ..., affinity: _Optional[_Union[_common_pb2.SubScore, _Mapping]] = ..., reason: _Optional[_Union[SkipReasonCode, str]] = ..., reason_detail: _Optional[str] = ..., competitor_count: _Optional[int] = ..., floor: _Optional[float] = ...) -> None: ...
 
 class ScoutDoorsRequest(_message.Message):
-    __slots__ = ("meta", "seed", "tags", "location", "radius_meters", "category_tags")
+    __slots__ = ("meta", "seed", "tags", "location", "radius_meters", "category_tags", "skip_candidate_ids", "skip_candidate_names")
     META_FIELD_NUMBER: _ClassVar[int]
     SEED_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
     LOCATION_FIELD_NUMBER: _ClassVar[int]
     RADIUS_METERS_FIELD_NUMBER: _ClassVar[int]
     CATEGORY_TAGS_FIELD_NUMBER: _ClassVar[int]
+    SKIP_CANDIDATE_IDS_FIELD_NUMBER: _ClassVar[int]
+    SKIP_CANDIDATE_NAMES_FIELD_NUMBER: _ClassVar[int]
     meta: _common_pb2.RequestMeta
     seed: BrandSeed
     tags: _containers.RepeatedCompositeFieldContainer[_common_pb2.Tag]
     location: _common_pb2.GeoPoint
     radius_meters: int
     category_tags: _containers.RepeatedCompositeFieldContainer[_common_pb2.Tag]
-    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., seed: _Optional[_Union[BrandSeed, _Mapping]] = ..., tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., location: _Optional[_Union[_common_pb2.GeoPoint, _Mapping]] = ..., radius_meters: _Optional[int] = ..., category_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ...) -> None: ...
+    skip_candidate_ids: _containers.RepeatedScalarFieldContainer[str]
+    skip_candidate_names: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., seed: _Optional[_Union[BrandSeed, _Mapping]] = ..., tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., location: _Optional[_Union[_common_pb2.GeoPoint, _Mapping]] = ..., radius_meters: _Optional[int] = ..., category_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., skip_candidate_ids: _Optional[_Iterable[str]] = ..., skip_candidate_names: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ScoutDoorsResponse(_message.Message):
-    __slots__ = ("doors", "skip_list", "warnings", "error_code", "error_message", "evidence")
+    __slots__ = ("doors", "skip_list", "warnings", "error_code", "error_message", "evidence", "affinity_floor")
     DOORS_FIELD_NUMBER: _ClassVar[int]
     SKIP_LIST_FIELD_NUMBER: _ClassVar[int]
     WARNINGS_FIELD_NUMBER: _ClassVar[int]
     ERROR_CODE_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_FIELD_NUMBER: _ClassVar[int]
+    AFFINITY_FLOOR_FIELD_NUMBER: _ClassVar[int]
     doors: _containers.RepeatedCompositeFieldContainer[DoorCandidate]
     skip_list: _containers.RepeatedCompositeFieldContainer[SkipItem]
     warnings: _containers.RepeatedScalarFieldContainer[str]
     error_code: _common_pb2.ErrorCode
     error_message: str
     evidence: _containers.RepeatedCompositeFieldContainer[_common_pb2.EvidenceCall]
-    def __init__(self, doors: _Optional[_Iterable[_Union[DoorCandidate, _Mapping]]] = ..., skip_list: _Optional[_Iterable[_Union[SkipItem, _Mapping]]] = ..., warnings: _Optional[_Iterable[str]] = ..., error_code: _Optional[_Union[_common_pb2.ErrorCode, str]] = ..., error_message: _Optional[str] = ..., evidence: _Optional[_Iterable[_Union[_common_pb2.EvidenceCall, _Mapping]]] = ...) -> None: ...
+    affinity_floor: float
+    def __init__(self, doors: _Optional[_Iterable[_Union[DoorCandidate, _Mapping]]] = ..., skip_list: _Optional[_Iterable[_Union[SkipItem, _Mapping]]] = ..., warnings: _Optional[_Iterable[str]] = ..., error_code: _Optional[_Union[_common_pb2.ErrorCode, str]] = ..., error_message: _Optional[str] = ..., evidence: _Optional[_Iterable[_Union[_common_pb2.EvidenceCall, _Mapping]]] = ..., affinity_floor: _Optional[float] = ...) -> None: ...
 
 class HeatmapPoint(_message.Message):
     __slots__ = ("location", "geohash", "affinity", "affinity_rank", "popularity")
