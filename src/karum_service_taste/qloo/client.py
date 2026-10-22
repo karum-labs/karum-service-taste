@@ -438,7 +438,9 @@ class QlooClient:
         cache_hit = False
         outcome: _FetchOutcome | None = None
         if not self._eval_bypass and self._cache is not None:
-            key = cache_key(path, params)
+            key = cache_key(
+                path, params, self._settings.mode.value, self._settings.qloo_base_url
+            )
             fetched = await self._single_flight.get_or_fetch(
                 key, self._cache, fetch, self._settings.cache_ttl_seconds
             )

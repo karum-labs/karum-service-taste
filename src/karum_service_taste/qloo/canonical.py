@@ -143,16 +143,25 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def cache_key(path: str, params: Sequence[tuple[str, str]]) -> str:
+def cache_key(
+    path: str, params: Sequence[tuple[str, str]], mode: str, base_url: str
+) -> str:
     """A stable, collision-resistant cache key for a Qloo request.
 
     The key is ``karum:qloo:<sha256>`` over the canonical request signature,
-    so the same logical request (regardless of parameter ordering or float
-    formatting) always hits the same entry.
+    plus the operating mode and the base URL, so a fixture-populated entry can
+    never be served to a live process (and vice versa). The same logical
+    request always hits the same entry regardless of parameter ordering or
+    float formatting.
     """
     sig: RequestSignature = signature(path, params)
     path_value, pairs = sig
-    document = [path_value, [[name, _jsonable(value)] for name, value in pairs]]
+    document = [
+        mode,
+        base_url,
+        path_value,
+        [[name, _jsonable(value)] for name, value in pairs],
+    ]
     digest = hashlib.sha256(
         json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()

@@ -220,19 +220,33 @@ def test_cache_key_is_stable_under_parameter_reordering() -> None:
         ("take", "25"),
     ]
     shuffled = list(reversed(base))
-    assert cache_key("/v2/insights", base) == cache_key("/v2/insights", shuffled)
+    assert cache_key("/v2/insights", base, "fixture", "https://api.qloo.com") == cache_key(
+        "/v2/insights", shuffled, "fixture", "https://api.qloo.com"
+    )
+
+
+def test_cache_key_distinguishes_modes_and_base_urls() -> None:
+    base = [("filter.location.radius", "8000")]
+    assert cache_key("/v2/insights", base, "fixture", "https://api.qloo.com") != cache_key(
+        "/v2/insights", base, "live", "https://api.qloo.com"
+    )
+    assert cache_key("/v2/insights", base, "fixture", "https://api.qloo.com") != cache_key(
+        "/v2/insights", base, "fixture", "https://staging.qloo.com"
+    )
 
 
 def test_cache_key_distinguishes_float_formatting_and_radius() -> None:
-    a = cache_key("/v2/insights", [("filter.location.radius", "8000")])
-    b = cache_key("/v2/insights", [("filter.location.radius", "8000.0")])
-    c = cache_key("/v2/insights", [("filter.location.radius", "10000")])
+    a = cache_key("/v2/insights", [("filter.location.radius", "8000")], "fixture", "https://api.qloo.com")
+    b = cache_key("/v2/insights", [("filter.location.radius", "8000.0")], "fixture", "https://api.qloo.com")
+    c = cache_key("/v2/insights", [("filter.location.radius", "10000")], "fixture", "https://api.qloo.com")
     assert a == b  # same number, different formatting
     assert a != c  # different radius
 
 
 def test_cache_key_prefix() -> None:
-    assert cache_key("/search", [("query", "Aesop")]).startswith("karum:qloo:")
+    assert cache_key("/search", [("query", "Aesop")], "fixture", "https://api.qloo.com").startswith(
+        "karum:qloo:"
+    )
 
 
 # ---------------------------------------------------------------------------
