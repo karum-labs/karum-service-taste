@@ -48,6 +48,11 @@ build-backend = "uv_build"
 [tool.uv]
 package = true
 
+# Ship the generated proto stubs (src/karum) in the wheel too. The images
+# install without editable mode, so anything outside this list is not importable.
+[tool.uv.build-backend]
+module-name = ["karum_service_taste", "karum"]
+
 [tool.ruff]
 # Target the pinned Python version and keep line length consistent.
 target-version = "py313"
