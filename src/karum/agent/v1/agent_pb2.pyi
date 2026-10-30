@@ -223,6 +223,14 @@ class DoorContext(_message.Message):
     audit: MenuAuditResult
     def __init__(self, shared_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., affinity: _Optional[_Union[_common_pb2.SubScore, _Mapping]] = ..., compare_tags: _Optional[_Iterable[_Union[_common_pb2.Tag, _Mapping]]] = ..., audit: _Optional[_Union[MenuAuditResult, _Mapping]] = ...) -> None: ...
 
+class Citation(_message.Message):
+    __slots__ = ("evidence_id", "text")
+    EVIDENCE_ID_FIELD_NUMBER: _ClassVar[int]
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    evidence_id: str
+    text: str
+    def __init__(self, evidence_id: _Optional[str] = ..., text: _Optional[str] = ...) -> None: ...
+
 class Battlecard(_message.Message):
     __slots__ = ("headline", "incumbent_name", "talking_points", "compare_summary")
     HEADLINE_FIELD_NUMBER: _ClassVar[int]
@@ -236,7 +244,7 @@ class Battlecard(_message.Message):
     def __init__(self, headline: _Optional[str] = ..., incumbent_name: _Optional[str] = ..., talking_points: _Optional[_Iterable[str]] = ..., compare_summary: _Optional[str] = ...) -> None: ...
 
 class DraftDoorPitchRequest(_message.Message):
-    __slots__ = ("meta", "mode", "brand", "door", "city", "max_words", "evidence_ids")
+    __slots__ = ("meta", "mode", "brand", "door", "city", "max_words", "evidence_ids", "instructions", "attachment_id", "attachment_name")
     META_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
     BRAND_FIELD_NUMBER: _ClassVar[int]
@@ -244,6 +252,9 @@ class DraftDoorPitchRequest(_message.Message):
     CITY_FIELD_NUMBER: _ClassVar[int]
     MAX_WORDS_FIELD_NUMBER: _ClassVar[int]
     EVIDENCE_IDS_FIELD_NUMBER: _ClassVar[int]
+    INSTRUCTIONS_FIELD_NUMBER: _ClassVar[int]
+    ATTACHMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    ATTACHMENT_NAME_FIELD_NUMBER: _ClassVar[int]
     meta: _common_pb2.RequestMeta
     mode: CampaignMode
     brand: BrandContext
@@ -251,14 +262,24 @@ class DraftDoorPitchRequest(_message.Message):
     city: str
     max_words: int
     evidence_ids: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., mode: _Optional[_Union[CampaignMode, str]] = ..., brand: _Optional[_Union[BrandContext, _Mapping]] = ..., door: _Optional[_Union[DoorContext, _Mapping]] = ..., city: _Optional[str] = ..., max_words: _Optional[int] = ..., evidence_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+    instructions: str
+    attachment_id: str
+    attachment_name: str
+    def __init__(self, meta: _Optional[_Union[_common_pb2.RequestMeta, _Mapping]] = ..., mode: _Optional[_Union[CampaignMode, str]] = ..., brand: _Optional[_Union[BrandContext, _Mapping]] = ..., door: _Optional[_Union[DoorContext, _Mapping]] = ..., city: _Optional[str] = ..., max_words: _Optional[int] = ..., evidence_ids: _Optional[_Iterable[str]] = ..., instructions: _Optional[str] = ..., attachment_id: _Optional[str] = ..., attachment_name: _Optional[str] = ...) -> None: ...
 
 class DraftDoorPitchResponse(_message.Message):
-    __slots__ = ("script", "battlecard", "recommended_sku", "mode_paragraph", "attribution", "error_code", "error_message")
+    __slots__ = ("script", "battlecard", "recommended_sku", "mode_paragraph", "opening", "why_this_door", "pitch", "product_to_lead", "ask", "close", "sources", "attribution", "error_code", "error_message")
     SCRIPT_FIELD_NUMBER: _ClassVar[int]
     BATTLECARD_FIELD_NUMBER: _ClassVar[int]
     RECOMMENDED_SKU_FIELD_NUMBER: _ClassVar[int]
     MODE_PARAGRAPH_FIELD_NUMBER: _ClassVar[int]
+    OPENING_FIELD_NUMBER: _ClassVar[int]
+    WHY_THIS_DOOR_FIELD_NUMBER: _ClassVar[int]
+    PITCH_FIELD_NUMBER: _ClassVar[int]
+    PRODUCT_TO_LEAD_FIELD_NUMBER: _ClassVar[int]
+    ASK_FIELD_NUMBER: _ClassVar[int]
+    CLOSE_FIELD_NUMBER: _ClassVar[int]
+    SOURCES_FIELD_NUMBER: _ClassVar[int]
     ATTRIBUTION_FIELD_NUMBER: _ClassVar[int]
     ERROR_CODE_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -266,10 +287,17 @@ class DraftDoorPitchResponse(_message.Message):
     battlecard: Battlecard
     recommended_sku: Sku
     mode_paragraph: str
+    opening: str
+    why_this_door: str
+    pitch: str
+    product_to_lead: str
+    ask: str
+    close: str
+    sources: _containers.RepeatedCompositeFieldContainer[Citation]
     attribution: ModelAttribution
     error_code: _common_pb2.ErrorCode
     error_message: str
-    def __init__(self, script: _Optional[str] = ..., battlecard: _Optional[_Union[Battlecard, _Mapping]] = ..., recommended_sku: _Optional[_Union[Sku, _Mapping]] = ..., mode_paragraph: _Optional[str] = ..., attribution: _Optional[_Union[ModelAttribution, _Mapping]] = ..., error_code: _Optional[_Union[_common_pb2.ErrorCode, str]] = ..., error_message: _Optional[str] = ...) -> None: ...
+    def __init__(self, script: _Optional[str] = ..., battlecard: _Optional[_Union[Battlecard, _Mapping]] = ..., recommended_sku: _Optional[_Union[Sku, _Mapping]] = ..., mode_paragraph: _Optional[str] = ..., opening: _Optional[str] = ..., why_this_door: _Optional[str] = ..., pitch: _Optional[str] = ..., product_to_lead: _Optional[str] = ..., ask: _Optional[str] = ..., close: _Optional[str] = ..., sources: _Optional[_Iterable[_Union[Citation, _Mapping]]] = ..., attribution: _Optional[_Union[ModelAttribution, _Mapping]] = ..., error_code: _Optional[_Union[_common_pb2.ErrorCode, str]] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class LlmOnlyBaselineRequest(_message.Message):
     __slots__ = ("meta", "brand", "city", "mode", "max_words")
