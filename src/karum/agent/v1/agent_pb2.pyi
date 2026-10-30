@@ -132,12 +132,20 @@ class Sku(_message.Message):
     def __init__(self, id: _Optional[str] = ..., name: _Optional[str] = ...) -> None: ...
 
 class BrandContext(_message.Message):
-    __slots__ = ("name", "skus")
+    __slots__ = ("name", "skus", "category", "description", "positioning", "audience")
     NAME_FIELD_NUMBER: _ClassVar[int]
     SKUS_FIELD_NUMBER: _ClassVar[int]
+    CATEGORY_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    POSITIONING_FIELD_NUMBER: _ClassVar[int]
+    AUDIENCE_FIELD_NUMBER: _ClassVar[int]
     name: str
     skus: _containers.RepeatedCompositeFieldContainer[Sku]
-    def __init__(self, name: _Optional[str] = ..., skus: _Optional[_Iterable[_Union[Sku, _Mapping]]] = ...) -> None: ...
+    category: str
+    description: str
+    positioning: str
+    audience: str
+    def __init__(self, name: _Optional[str] = ..., skus: _Optional[_Iterable[_Union[Sku, _Mapping]]] = ..., category: _Optional[str] = ..., description: _Optional[str] = ..., positioning: _Optional[str] = ..., audience: _Optional[str] = ...) -> None: ...
 
 class GroundingSource(_message.Message):
     __slots__ = ("url", "title")
