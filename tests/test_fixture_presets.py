@@ -152,17 +152,17 @@ async def test_the_flagship_keeps_its_locality_polygons(pack: FixturePack) -> No
     assert with_ring, "no locality carried a polygon ring"
 
 
-async def test_the_door_demographics_stay_unverified(pack: FixturePack) -> None:
-    """The pack holds no recording of any door's demographics.
-
-    The recordings answer for the seed and for the candidate batch, so the
-    door batch has nothing to replay and the alignment stays unverified. The
-    run says so, and the run must not invent an alignment.
+async def test_the_door_demographics_are_verified(pack: FixturePack) -> None:
+    """The pack holds per-door demographics recordings for every preset door
+    batch, so the scout scores D_demo against the seed cohort for each door
+    and never leaves alignment unverified.
     """
     result = await _scout(pack, _record(pack, "austin-wholesale"))
-    assert any("demographics" in warning for warning in result.warnings)
-    for door in result.doors:
-        assert door.demographic_alignment is None
+    assert not any("demographics" in warning for warning in result.warnings)
+    # Only the top 8 doors (DETAIL_DOOR_LIMIT) get per-door demographics;
+    # lower-ranked doors stay unverified.
+    for door in result.doors[:8]:
+        assert door.demographic_alignment is not None
 
 
 async def test_a_trimmed_request_serves_the_wider_recording(pack: FixturePack) -> None:

@@ -209,7 +209,9 @@ async def test_fixture_flagship_skip_list_replays(pack: FixturePack) -> None:
         skip_candidate_ids=FLAGSHIP_SKIPS,
     )
 
-    assert result.warnings == []
+    assert result.warnings == [
+        "demographic mismatch at Stonefruit Espresso + Kitchen: D_demo 0.48 runs against the brand cohort"
+    ]
     assert [item.entity.id for item in result.skip_list] == FLAGSHIP_SKIPS
     assert all(item.reason is SkipReason.LOW_AFFINITY for item in result.skip_list)
 
@@ -235,7 +237,7 @@ async def test_fixture_flagship_skip_list_replays(pack: FixturePack) -> None:
     batch = result.evidence[4].parameters
     assert "filter.results.entities=" + ",".join(FLAGSHIP_SKIPS) in batch
     assert "take=25" in batch
-    assert len(transport.scripted) == 1  # only the door-demographics batch was scripted
+    assert len(transport.scripted) == 0  # the pack serves door demographics directly
 
 
 async def test_fixture_austin_control_stays_off_the_skip_list(pack: FixturePack) -> None:
@@ -300,7 +302,6 @@ async def test_fixture_colaba_degrades_to_the_board_floor(pack: FixturePack) -> 
     assert result.warnings == [
         "not_found: BC400638-8F5F-4F9C-9634-4833CA61E26F",
         "ranked pool probe unavailable (QlooFixtureMissError); floor falls back to the door board",
-        "door demographics unavailable (QlooFixtureMissError); alignment stays unverified",
     ]
     assert transport.scripted == []
     assert len(result.skip_list) == 5
@@ -309,6 +310,7 @@ async def test_fixture_colaba_degrades_to_the_board_floor(pack: FixturePack) -> 
     assert result.skip_list[0].affinity.inputs == ["pool=25", "floor=0.9295"]
     assert [call.endpoint for call in result.evidence] == [
         "insights.place",
+        "insights.demographics",
         "insights.demographics",
         "insights.place",
     ]

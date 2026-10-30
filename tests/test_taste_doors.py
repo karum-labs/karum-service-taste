@@ -85,7 +85,9 @@ async def test_fixture_scouts_the_flagship_board(pack: FixturePack) -> None:
 
     assert result.error_code is ErrorCode.UNSPECIFIED
     assert [door.rank for door in result.doors] == list(range(1, 26))
-    assert result.warnings == []
+    assert result.warnings == [
+        "demographic mismatch at Stonefruit Espresso + Kitchen: D_demo 0.48 runs against the brand cohort"
+    ]
     assert result.skip_list == []
 
     top = result.doors[0]
@@ -96,7 +98,7 @@ async def test_fixture_scouts_the_flagship_board(pack: FixturePack) -> None:
     assert top.affinity.inputs == ["rank=1", "shortlist=25"]
     assert result.doors[1].affinity.value == pytest.approx(23 / 24)
     assert result.doors[-1].affinity.value == 0.0
-    assert top.demographic_alignment is None  # the scripted batch carried no profiles
+    assert top.demographic_alignment is not None
     assert top.distance_meters == pytest.approx(3155.65, abs=5)
     assert top.outside_city is False
     assert [(tag.urn, tag.label) for tag in top.shared_tags[:2]] == [
@@ -144,13 +146,11 @@ async def test_fixture_scouts_the_flagship_board(pack: FixturePack) -> None:
     assert result.evidence[2].parameters == (
         "filter.type=urn:demographics&signal.interests.entities=" + ",".join(top_ids)
     )
-    assert len(transport.scripted) == 1
-    assert transport.scripted[0][0] == "/v2/insights"
-    assert ("signal.interests.entities", ",".join(top_ids)) in transport.scripted[0][1]
+    assert len(transport.scripted) == 0  # the pack serves both demographics calls directly
 
-    for door in result.doors:
-        assert door.evidence_ids == ["ev-0001"]  # the empty batch matched no door
-        assert door.demographics is None
+    for door in result.doors[:8]:
+        assert "ev-0001" in door.evidence_ids  # the empty batch matched no door
+        assert door.demographics is not None
 
 
 async def test_fixture_surfaces_upstream_warnings(pack: FixturePack) -> None:
@@ -167,10 +167,10 @@ async def test_fixture_surfaces_upstream_warnings(pack: FixturePack) -> None:
     assert len(result.doors) == 25
     assert result.warnings == [
         "not_found: BC400638-8F5F-4F9C-9634-4833CA61E26F",
-        "door demographics unavailable (QlooFixtureMissError); alignment stays unverified",
     ]
     assert [call.endpoint for call in result.evidence] == [
         "insights.place",
+        "insights.demographics",
         "insights.demographics",
     ]
 
@@ -194,9 +194,14 @@ async def test_fixture_collab_sends_one_call_per_category(pack: FixturePack) -> 
     assert "filter.tags=urn:tag:genre:place:art_gallery" in result.evidence[0].parameters
     assert "filter.tags=urn:tag:genre:place:ceramics" in result.evidence[1].parameters
     assert len(result.doors) == 25
-    assert result.warnings == [f"category {CERAMICS} matched no doors"]
-    assert all(door.evidence_ids == ["ev-0001"] for door in result.doors)
-    assert len(transport.scripted) == 1  # only the door-demographics batch was scripted
+    assert result.warnings == [
+        "category urn:tag:genre:place:ceramics matched no doors",
+        "demographic mismatch at BDDW: D_demo 0.46 runs against the brand cohort",
+        "demographic mismatch at John Derian Company Inc: D_demo 0.48 runs against the brand cohort",
+        "demographic mismatch at Neue Galerie New York: D_demo 0.50 runs against the brand cohort",
+    ]
+    assert all("ev-0001" in door.evidence_ids for door in result.doors)
+    assert len(transport.scripted) == 0  # the pack serves both demographics calls directly
 
 
 async def test_fixture_austin_board_uses_the_bar_tag(pack: FixturePack) -> None:
